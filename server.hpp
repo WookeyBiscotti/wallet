@@ -4,7 +4,6 @@
 #include "utils.hpp"
 
 #include <cstdint>
-#include <format>
 #include <iostream>
 #include <map>
 #include <string>
