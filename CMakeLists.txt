@@ -26,9 +26,9 @@ FetchContent_Declare(abseil-cpp
 
 FetchContent_MakeAvailable(SQLiteCpp tgbot-cpp abseil-cpp)
 
-add_executable(wallet main.cpp)
+add_executable(wallet_bot main.cpp)
 
-target_link_libraries(wallet PUBLIC SQLiteCpp absl::time TgBot)
+target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot)
 
 file(GLOB_RECURSE MIGRATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/migration/*")
 add_custom_command(
@@ -39,4 +39,4 @@ add_custom_command(
 )
 
 add_custom_target(copy_migration ALL DEPENDS "${CMAKE_BINARY_DIR}/.migration_copied")
-add_dependencies(wallet copy_migration)
+add_dependencies(wallet_bot copy_migration)
