@@ -24,11 +24,17 @@ FetchContent_Declare(abseil-cpp
     GIT_SHALLOW ON
 )
 
-FetchContent_MakeAvailable(SQLiteCpp tgbot-cpp abseil-cpp)
+FetchContent_Declare(fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG master
+    GIT_SHALLOW ON
+)
+
+FetchContent_MakeAvailable(SQLiteCpp tgbot-cpp abseil-cpp fmt)
 
 add_executable(wallet_bot main.cpp)
 
-target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot)
+target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot fmt::fmt)
 
 file(GLOB_RECURSE MIGRATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/migration/*")
 add_custom_command(

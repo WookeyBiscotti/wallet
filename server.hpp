@@ -23,20 +23,22 @@
 #include <tgbot/net/TgLongPoll.h>
 #include <tgbot/types/ReactionTypeEmoji.h>
 
+#include <fmt/format.h>
+
 struct WalletEntry {
     std::int64_t id;
     double amount;
     std::string description;
 
     void save(SQLite::Database& db, std::int64_t chatId, const absl::Time& time) {
-        db.exec(std::format("INSERT INTO WalletEntries VALUES(NULL,{},{},{},\"{}\")", chatId, absl::ToUnixSeconds(time),
+        db.exec(fmt::format("INSERT INTO WalletEntries VALUES(NULL,{},{},{},\"{}\")", chatId, absl::ToUnixSeconds(time),
             amount, description));
     }
 };
 
 inline std::multimap<absl::Time, WalletEntry> loadWalletEntries(SQLite::Database& db, std::int64_t chatId) {
     std::multimap<absl::Time, WalletEntry> entries;
-    SQLite::Statement query(db, std::format("SELECT * FROM WalletEntries WHERE chat_id = {}", chatId));
+    SQLite::Statement query(db, fmt::format("SELECT * FROM WalletEntries WHERE chat_id = {}", chatId));
     while (query.executeStep()) {
         WalletEntry entry;
         entry.id = query.getColumn(0).getInt64();
@@ -55,7 +57,7 @@ struct Wallet {
 
     bool load(SQLite::Database& db, std::int64_t chatId) {
         {
-            SQLite::Statement query(db, std::format("SELECT * FROM Wallets WHERE chat_id = {}", chatId));
+            SQLite::Statement query(db, fmt::format("SELECT * FROM Wallets WHERE chat_id = {}", chatId));
             if (!query.executeStep()) {
                 return false;
             }
@@ -66,7 +68,7 @@ struct Wallet {
     }
 
     void save(SQLite::Database& db, std::int64_t chatId) {
-        auto qStr = std::format("INSERT INTO Wallets VALUES({}, \"{}\")", chatId, timeZone);
+        auto qStr = fmt::format("INSERT INTO Wallets VALUES({}, \"{}\")", chatId, timeZone);
         db.exec(qStr);
     }
 };
@@ -139,7 +141,7 @@ public:
                 return;
             }
 
-            _bot->getApi().sendMessage(chat->id, std::format("{:.0f}", getDayAmountSum(chat->id).amount));
+            _bot->getApi().sendMessage(chat->id, fmt::format("{:.0f}", getDayAmountSum(chat->id).amount));
         });
 
         cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
@@ -155,10 +157,10 @@ public:
             double total = 0;
             auto data = getDaysAmountSum(chat->id, 10);
             for (std::size_t i = 0; i != 10; ++i) {
-                message += std::format("📅{} 💲{:.0f}\n", data[i].day, data[i].amount);
+                message += fmt::format("📅{} 💲{:.0f}\n", data[i].day, data[i].amount);
                 total += data[i].amount;
             }
-            message += std::format("━━━━━━━━━━━━━\n💰 = {}", total);
+            message += fmt::format("━━━━━━━━━━━━━\n💰 = {}", total);
 
             _bot->getApi().sendMessage(chat->id, message);
         });
@@ -176,7 +178,7 @@ public:
 
 private:
     void loadWallets() {
-        SQLite::Statement query(_db, std::format("SELECT * FROM Wallets"));
+        SQLite::Statement query(_db, fmt::format("SELECT * FROM Wallets"));
         while (query.executeStep()) {
             Wallet wallet;
             wallet.timeZone = query.getColumn(1).getString();
@@ -215,7 +217,7 @@ private:
             auto dayEnd = absl::FromCivil(nowDate - i + 1, tz);
 
             SQLite::Statement query(_db,
-                std::format("SELECT amount FROM WalletEntries WHERE chat_id = {} AND ts >= {} AND ts <= {}", chatId,
+                fmt::format("SELECT amount FROM WalletEntries WHERE chat_id = {} AND ts >= {} AND ts <= {}", chatId,
                     absl::ToUnixSeconds(dayStart), absl::ToUnixSeconds(dayEnd)));
             double sum = 0;
             while (query.executeStep()) {
