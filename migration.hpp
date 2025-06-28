@@ -1,11 +1,13 @@
 #pragma once
 
-#include <SQLiteCpp/SQLiteCpp.h>
-
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <vector>
+
+#include <SQLiteCpp/SQLiteCpp.h>
+
+#include <fmt/format.h>
 
 class Migration {
 public:
@@ -37,12 +39,12 @@ public:
             auto migrationVersion = std::stoi(entry.filename().replace_extension(""));
             if (migrationVersion > currentVersion) {
                 currentVersion = migrationVersion;
-                std::ifstream а(entry);
-                std::string queryStr((std::istreambuf_iterator<char>(а)), std::istreambuf_iterator<char>());
+                std::ifstream a(entry);
+                std::string queryStr((std::istreambuf_iterator<char>(a)), std::istreambuf_iterator<char>());
                 db.exec(queryStr);
             }
         }
-        db.exec(std::format("UPDATE Migration SET version = {}", currentVersion));
+        db.exec(fmt::format("UPDATE Migration SET version = {}", currentVersion));
         tr.commit();
     }
 };
