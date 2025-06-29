@@ -35,6 +35,16 @@ struct WalletEntry {
     }
 };
 
+struct Wallet {
+    std::string timeZone = "Europe/Moscow";
+    double dayLimit;
+
+    void save(SQLite::Database& db, std::int64_t chatId) const {
+        auto qStr = fmt::format("INSERT OR REPLACE INTO Wallets VALUES({}, \"{}\", {}) ", chatId, timeZone, dayLimit);
+        db.exec(qStr);
+    }
+};
+
 inline std::multimap<absl::Time, WalletEntry> loadWalletEntries(SQLite::Database& db, std::int64_t chatId) {
     std::multimap<absl::Time, WalletEntry> entries;
     SQLite::Statement query(db, fmt::format("SELECT * FROM WalletEntries WHERE chat_id = {}", chatId));
@@ -50,29 +60,6 @@ inline std::multimap<absl::Time, WalletEntry> loadWalletEntries(SQLite::Database
 
     return entries;
 }
-
-struct Wallet {
-    std::string timeZone = "Europe/Moscow";
-    double dayLimit;
-
-    bool load(SQLite::Database& db, std::int64_t chatId) {
-        {
-            SQLite::Statement query(db, fmt::format("SELECT * FROM Wallets WHERE chat_id = {}", chatId));
-            if (!query.executeStep()) {
-                return false;
-            }
-            timeZone = query.getColumn(1).getString();
-            dayLimit = query.getColumn(2).getDouble();
-        }
-
-        return true;
-    }
-
-    void save(SQLite::Database& db, std::int64_t chatId) {
-        auto qStr = fmt::format("INSERT INTO Wallets VALUES({}, \"{}\")", chatId, timeZone);
-        db.exec(qStr);
-    }
-};
 
 class Server {
 public:
@@ -102,20 +89,15 @@ public:
                 return;
             }
 
-            double amount;
-            if (absl::from_chars(strings[0].begin(), strings[0].end(), amount).ec != std::errc()) {
+            auto amount = strToDouble(strings[0]);
+            if(!amount) {
                 return;
             }
 
-            auto foundChat = _wallets.find(chat->id);
-            if (foundChat == _wallets.end()) {
-                Wallet w;
-                w.save(_db, chat->id);
-                foundChat = _wallets.emplace(chat->id, std::move(w)).first;
-            }
+            auto wallet = loadWallet(chat->id);
 
             WalletEntry entry;
-            entry.amount = amount;
+            entry.amount = *amount;
             entry.description = std::string(strings[1].data(), strings.back().data() + strings.back().size());
 
             absl::Time time = absl::FromUnixSeconds(msg->date);
@@ -130,6 +112,19 @@ public:
                 true);
 
             tr.commit();
+
+            if (wallet.dayLimit == 0) {
+                return;
+            }
+            const auto delta = wallet.dayLimit - getDayAmountSum(chat->id).amount;
+            std::string message;
+            if (delta < 0) {
+                message = fmt::format("🟥 Дефицит деня: {}", -delta);
+            } else {
+                message = fmt::format("🟩 Осталось на день: {}", delta);
+            }
+
+            _bot->getApi().sendMessage(chat->id, message);
         });
 
         TgBot::BotCommand::Ptr cmdArray(new TgBot::BotCommand);
@@ -165,6 +160,57 @@ public:
 
             _bot->getApi().sendMessage(chat->id, message);
         });
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/set_day_limit";
+        cmdArray->description = "Установить дневной лимит";
+        commands.push_back(cmdArray);
+        _bot->getEvents().onCommand("set_day_limit", [&](TgBot::Message::Ptr msg) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(msg->text), ' ');
+
+            if (strings.size() != 2) {
+                _bot->getApi().sendMessage(chat->id,
+                    "⚠️ Необходимо указать дневной лимит. Например: `/set_day_limit 1337`");
+                return;
+            }
+
+            auto dayLimit = strToDouble(strings[1]);
+            if (!dayLimit) {
+                _bot->getApi().sendMessage(chat->id, "⚠️ Дневной лимит должен быть числом. Например: `1337`");
+            }
+
+            SQLite::Transaction tr(_db);
+
+            auto wallet = loadWallet(chat->id);
+            wallet.dayLimit = *dayLimit;
+            updateWallet(chat->id, wallet);
+
+            _bot->getApi().setMessageReaction(chat->id, msg->messageId, {[] {
+                auto r = std::make_shared<TgBot::ReactionTypeEmoji>();
+                r->emoji = "⚡";
+                return std::move(r);
+            }()},
+                true);
+
+            tr.commit();
+        });
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/get_day_limit";
+        cmdArray->description = "Узнать дневной лимит";
+        commands.push_back(cmdArray);
+        _bot->getEvents().onCommand("get_day_limit", [&](TgBot::Message::Ptr msg) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            auto wallet = loadWallet(chat->id);
+            _bot->getApi().sendMessage(chat->id, fmt::format("🕑💰 Дневной лимит: {}", wallet.dayLimit));
+        });
 
         _bot->getApi().setMyCommands(commands);
         TgBot::TgLongPoll longPoll(*_bot);
@@ -183,7 +229,30 @@ private:
         while (query.executeStep()) {
             Wallet wallet;
             wallet.timeZone = query.getColumn(1).getString();
+            wallet.dayLimit = query.getColumn(2).getDouble();
             _wallets.emplace(query.getColumn(0).getInt64(), std::move(wallet));
+        }
+    }
+
+    Wallet loadWallet(std::int64_t chatId) {
+        auto foundChat = _wallets.find(chatId);
+        if (foundChat == _wallets.end()) {
+            Wallet w;
+            w.save(_db, chatId);
+            foundChat = _wallets.emplace(chatId, std::move(w)).first;
+        }
+        return foundChat->second;
+    }
+
+    void updateWallet(std::int64_t chatId, const Wallet& wallet) {
+        auto foundChat = _wallets.find(chatId);
+        if (foundChat == _wallets.end()) {
+            Wallet w;
+            w.save(_db, chatId);
+            foundChat = _wallets.emplace(chatId, std::move(w)).first;
+        } else {
+            foundChat->second = wallet;
+            wallet.save(_db, chatId);
         }
     }
 
