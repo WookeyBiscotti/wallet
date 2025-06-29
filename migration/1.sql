@@ -1,6 +1,6 @@
 CREATE TABLE Wallets (chat_id INTEGER PRIMARY KEY, time_zone TEXT);
 
-CREATE TABLE WalletEntries(
+CREATE TABLE WalletEntries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER,
     ts INTEGER,

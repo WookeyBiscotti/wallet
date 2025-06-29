@@ -53,6 +53,7 @@ inline std::multimap<absl::Time, WalletEntry> loadWalletEntries(SQLite::Database
 
 struct Wallet {
     std::string timeZone = "Europe/Moscow";
+    double dayLimit;
 
     bool load(SQLite::Database& db, std::int64_t chatId) {
         {
@@ -60,7 +61,8 @@ struct Wallet {
             if (!query.executeStep()) {
                 return false;
             }
-            timeZone = query.getColumn(0).getString();
+            timeZone = query.getColumn(1).getString();
+            dayLimit = query.getColumn(2).getDouble();
         }
 
         return true;

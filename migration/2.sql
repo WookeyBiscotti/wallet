@@ -1,0 +1,4 @@
+ALTER TABLE
+    Wallets
+ADD
+    COLUMN day_limit DOUBLE NOT NULL DEFAULT 0;
