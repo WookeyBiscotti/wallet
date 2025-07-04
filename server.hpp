@@ -1,6 +1,11 @@
 #pragma once
 
+#include "db/wallet.hpp"
+#include "db/wallet_day_report.hpp"
+#include "db/wallet_entry.hpp"
+
 #include "migration.hpp"
+#include "scheduler.hpp"
 #include "utils.hpp"
 
 #include <cstdint>
@@ -8,6 +13,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <absl/container/inlined_vector.h>
@@ -23,43 +29,6 @@
 #include <tgbot/types/ReactionTypeEmoji.h>
 
 #include <fmt/format.h>
-
-struct WalletEntry {
-    std::int64_t id;
-    double amount;
-    std::string description;
-
-    void save(SQLite::Database& db, std::int64_t chatId, const absl::Time& time) {
-        db.exec(fmt::format("INSERT INTO WalletEntries VALUES(NULL,{},{},{},\"{}\")", chatId, absl::ToUnixSeconds(time),
-            amount, description));
-    }
-};
-
-struct Wallet {
-    std::string timeZone = "Europe/Moscow";
-    double dayLimit;
-
-    void save(SQLite::Database& db, std::int64_t chatId) const {
-        auto qStr = fmt::format("INSERT OR REPLACE INTO Wallets VALUES({}, \"{}\", {}) ", chatId, timeZone, dayLimit);
-        db.exec(qStr);
-    }
-};
-
-inline std::multimap<absl::Time, WalletEntry> loadWalletEntries(SQLite::Database& db, std::int64_t chatId) {
-    std::multimap<absl::Time, WalletEntry> entries;
-    SQLite::Statement query(db, fmt::format("SELECT * FROM WalletEntries WHERE chat_id = {}", chatId));
-    while (query.executeStep()) {
-        WalletEntry entry;
-        entry.id = query.getColumn(0).getInt64();
-        entry.amount = query.getColumn(3).getDouble();
-        entry.description = query.getColumn(4).getDouble();
-        const auto ts = query.getColumn(2).getInt64();
-
-        entries.emplace(absl::FromUnixSeconds(ts), entry);
-    }
-
-    return entries;
-}
 
 class Server {
 public:
@@ -90,7 +59,7 @@ public:
             }
 
             auto amount = strToDouble(strings[0]);
-            if(!amount) {
+            if (!amount) {
                 return;
             }
 
@@ -99,10 +68,10 @@ public:
             WalletEntry entry;
             entry.amount = *amount;
             entry.description = std::string(strings[1].data(), strings.back().data() + strings.back().size());
+            entry.time = absl::FromUnixSeconds(msg->date);
+            entry.chatId = chat->id;
 
-            absl::Time time = absl::FromUnixSeconds(msg->date);
-
-            entry.save(_db, chat->id, time);
+            entry.save(_db);
 
             _bot->getApi().setMessageReaction(chat->id, msg->messageId, {[] {
                 auto r = std::make_shared<TgBot::ReactionTypeEmoji>();
@@ -116,12 +85,12 @@ public:
             if (wallet.dayLimit == 0) {
                 return;
             }
-            const auto delta = wallet.dayLimit - getDayAmountSum(chat->id).amount;
+            const auto delta = wallet.dayLimit - WalletEntry::getDayAmountSum(_db, wallet).amount;
             std::string message;
             if (delta < 0) {
-                message = fmt::format("🟥 Дефицит деня: {}", -delta);
+                message = fmt::format("🟥 Дефицит дня: {:'.0f}₽", -delta);
             } else {
-                message = fmt::format("🟩 Осталось на день: {}", delta);
+                message = fmt::format("🟩 Осталось на день: {:'.0f}₽", delta);
             }
 
             _bot->getApi().sendMessage(chat->id, message);
@@ -137,7 +106,10 @@ public:
                 return;
             }
 
-            _bot->getApi().sendMessage(chat->id, fmt::format("{:.0f}", getDayAmountSum(chat->id).amount));
+            auto wallet = loadWallet(chat->id);
+
+            _bot->getApi().sendMessage(chat->id,
+                fmt::format("{:.0f}", WalletEntry::getDayAmountSum(_db, wallet).amount));
         });
 
         cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
@@ -149,14 +121,17 @@ public:
             if (!chat) {
                 return;
             }
+
+            auto wallet = loadWallet(chat->id);
+
             std::string message;
             double total = 0;
-            auto data = getDaysAmountSum(chat->id, 10);
+            auto data = WalletEntry::getDaysAmountSum(_db, wallet, 10);
             for (std::size_t i = 0; i != 10; ++i) {
-                message += fmt::format("📅{} 💲{:.0f}\n", data[i].day, data[i].amount);
+                message += fmt::format("📅 {} 💲 {:'.0f}\n", data[i].day, data[i].amount);
                 total += data[i].amount;
             }
-            message += fmt::format("━━━━━━━━━━━━━\n💰 = {}", total);
+            message += fmt::format("━━━━━━━━━━━━━\n💰 = {:'.0f}₽", total);
 
             _bot->getApi().sendMessage(chat->id, message);
         });
@@ -181,6 +156,8 @@ public:
             auto dayLimit = strToDouble(strings[1]);
             if (!dayLimit) {
                 _bot->getApi().sendMessage(chat->id, "⚠️ Дневной лимит должен быть числом. Например: `1337`");
+
+                return;
             }
 
             SQLite::Transaction tr(_db);
@@ -212,6 +189,74 @@ public:
             _bot->getApi().sendMessage(chat->id, fmt::format("🕑💰 Дневной лимит: {}", wallet.dayLimit));
         });
 
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/report";
+        cmdArray->description = "Узнать отчет за N дней";
+        commands.push_back(cmdArray);
+
+        auto reportFn = [&](TgBot::Message::Ptr msg, std::size_t daysCount) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            auto wallet = loadWallet(chat->id);
+            const auto lastDay = absl::ToCivilDay(absl::Now(), wallet.timeZone) - 1;
+
+            std::string reportStr;
+            for (std::size_t i = 0; i != daysCount; ++i) {
+                auto report = WalletDayReport::load(_db, wallet, lastDay - i);
+                if (report) {
+                    reportStr += "`" + report->toString() + "`\n";
+                } else {
+                    break;
+                }
+            }
+
+            if (!reportStr.empty()) {
+                _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
+            } else {
+                _bot->getApi().sendMessage(chat->id,
+                    fmt::format("⚠️ Невозможно получить отчет за этот день: 📅 {:02d}/{:02d}/{}", lastDay.day(),
+                        lastDay.month(), lastDay.year()));
+            }
+        };
+
+        _bot->getEvents().onCommand("report", [&](TgBot::Message::Ptr msg) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(msg->text), ' ');
+
+            if (strings.size() != 2) {
+                _bot->getApi().sendMessage(chat->id, "⚠️ Необходимо указать количество дней. Например: `/report 7`");
+                return;
+            }
+
+            auto daysCount = strToT<std::size_t>(strings[1]);
+            if (!daysCount) {
+                _bot->getApi().sendMessage(chat->id, "⚠️ Количество дней должно быть числом. Например: `7`");
+
+                return;
+            }
+
+            reportFn(msg, *daysCount);
+        });
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/report_1";
+        cmdArray->description = "Узнать отчет за предыдущий день";
+        commands.push_back(cmdArray);
+        _bot->getEvents().onCommand("report_1", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/report_7";
+        cmdArray->description = "Узнать отчет за предыдущую неделю";
+        commands.push_back(cmdArray);
+        _bot->getEvents().onCommand("report_7", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
+
         _bot->getApi().setMyCommands(commands);
         TgBot::TgLongPoll longPoll(*_bot);
         while (true) {
@@ -225,20 +270,14 @@ public:
 
 private:
     void loadWallets() {
-        SQLite::Statement query(_db, fmt::format("SELECT * FROM Wallets"));
-        while (query.executeStep()) {
-            Wallet wallet;
-            wallet.timeZone = query.getColumn(1).getString();
-            wallet.dayLimit = query.getColumn(2).getDouble();
-            _wallets.emplace(query.getColumn(0).getInt64(), std::move(wallet));
-        }
+        Wallet::loadForEach(_db, [&](const Wallet& wallet) { _wallets.emplace(wallet.chatId, wallet); });
     }
 
     Wallet loadWallet(std::int64_t chatId) {
         auto foundChat = _wallets.find(chatId);
         if (foundChat == _wallets.end()) {
-            Wallet w;
-            w.save(_db, chatId);
+            Wallet w = {};
+            w.save(_db);
             foundChat = _wallets.emplace(chatId, std::move(w)).first;
         }
         return foundChat->second;
@@ -247,56 +286,13 @@ private:
     void updateWallet(std::int64_t chatId, const Wallet& wallet) {
         auto foundChat = _wallets.find(chatId);
         if (foundChat == _wallets.end()) {
-            Wallet w;
-            w.save(_db, chatId);
-            foundChat = _wallets.emplace(chatId, std::move(w)).first;
+            wallet.save(_db);
+
+            foundChat = _wallets.emplace(chatId, wallet).first;
         } else {
             foundChat->second = wallet;
-            wallet.save(_db, chatId);
+            wallet.save(_db);
         }
-    }
-
-    struct DaySumInfo {
-        double amount;
-        std::string day;
-    };
-
-    DaySumInfo getDayAmountSum(std::int64_t chatId) {
-        return getDaysAmountSum(chatId, 1)[0];
-    }
-
-    absl::InlinedVector<DaySumInfo, 10> getDaysAmountSum(std::int64_t chatId, std::size_t daysCount) {
-        absl::InlinedVector<DaySumInfo, 10> result;
-        result.reserve(daysCount);
-
-        auto foundChat = _wallets.find(chatId);
-        if (foundChat == _wallets.end()) {
-            result.resize(daysCount);
-
-            return result;
-        }
-
-        absl::TimeZone tz;
-        absl::LoadTimeZone(foundChat->second.timeZone, &tz);
-
-        const auto now = absl::Now();
-        const auto nowDate = absl::ToCivilDay(now, tz);
-
-        for (std::size_t i = 0; i != daysCount; ++i) {
-            auto dayStart = absl::FromCivil(nowDate - i, tz);
-            auto dayEnd = absl::FromCivil(nowDate - i + 1, tz);
-
-            SQLite::Statement query(_db,
-                fmt::format("SELECT amount FROM WalletEntries WHERE chat_id = {} AND ts >= {} AND ts <= {}", chatId,
-                    absl::ToUnixSeconds(dayStart), absl::ToUnixSeconds(dayEnd)));
-            double sum = 0;
-            while (query.executeStep()) {
-                sum += query.getColumn(0).getDouble();
-            }
-            result.push_back({sum, absl::FormatTime("%d/%m/%Y", dayStart, tz)});
-        }
-
-        return result;
     }
 
 private:
@@ -304,4 +300,5 @@ private:
     std::optional<TgBot::Bot> _bot;
 
     std::unordered_map<std::int64_t, Wallet> _wallets;
+    // Scheduler _scheduler;
 };
