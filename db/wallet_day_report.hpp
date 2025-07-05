@@ -29,8 +29,23 @@ struct WalletDayReport {
     double dayLimit;
 
     std::string toString() const {
-        return fmt::format("📅{:02d}/{:02d}/{}:💸{:>6}₽,⚖️{}{:>6}₽", date.day(), date.month(), date.year(),
-            formatWithApostrophes(dayExpenses), dayBalance < 0 ? "🟥" : "🟩", formatWithApostrophes(dayBalance));
+        std::string color;
+        if (dayBalance < 0) {
+            if (dayLimit - dayExpenses < 0) {
+                color = "🟥";
+            } else {
+                color = "🟧";
+            }
+        } else {
+            if (dayLimit - dayExpenses < 0) {
+                color = "🟨";
+            } else {
+                color = "🟩";
+            }
+        }
+
+        return fmt::format("📅{:02d}/{:02d}:💸{:>6}₽,⚖️{}{:>6}₽", date.day(), date.month(),
+            formatWithApostrophes(dayExpenses), color, formatWithApostrophes(dayBalance));
     }
 
     static std::optional<WalletDayReport> load(SQLite::Database& db, const Wallet& wallet, absl::CivilDay day) {
