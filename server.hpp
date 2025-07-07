@@ -81,8 +81,6 @@ public:
             }()},
                 true);
 
-            tr.commit();
-
             if (wallet.dayLimit == 0) {
                 return;
             }
@@ -95,13 +93,15 @@ public:
             }
 
             _bot->getApi().sendMessage(chat->id, message);
+
+            tr.commit();
         });
 
         TgBot::BotCommand::Ptr cmdArray(new TgBot::BotCommand);
         cmdArray->command = "sumday";
         cmdArray->description = "Сумма за день";
         commands.push_back(cmdArray);
-        _bot->getEvents().onCommand("sumday", [&](TgBot::Message::Ptr msg) {
+        addCommand("sumday", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -117,7 +117,7 @@ public:
         cmdArray->command = "stat_ten";
         cmdArray->description = "Статистика за 10 дней";
         commands.push_back(cmdArray);
-        _bot->getEvents().onCommand("stat_ten", [&](TgBot::Message::Ptr msg) {
+        addCommand("stat_ten", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -140,7 +140,7 @@ public:
         cmdArray->command = "/set_day_limit";
         cmdArray->description = "Установить дневной лимит";
         commands.push_back(cmdArray);
-        _bot->getEvents().onCommand("set_day_limit", [&](TgBot::Message::Ptr msg) {
+        addCommand("set_day_limit", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -223,7 +223,7 @@ public:
             }
         };
 
-        _bot->getEvents().onCommand("report", [&](TgBot::Message::Ptr msg) {
+        addCommand("report", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -264,8 +264,7 @@ public:
             try {
                 longPoll.start();
             } catch (const std::exception& e) {
-                std::string s = e.what();
-                std::cout << s;
+                std::cout << e.what();
             }
         }
     }
@@ -273,6 +272,20 @@ public:
 private:
     void loadWallets() {
         Wallet::loadForEach(_db, [&](const Wallet& wallet) { _wallets.emplace(wallet.chatId, wallet); });
+    }
+
+    template<class Fn>
+    void addCommand(const std::string& name, Fn&& fn) {
+        _bot->getEvents().onCommand(name, [&, fn = std::move(fn)](TgBot::Message::Ptr msg) {
+            try {
+                fn(msg);
+            } catch (const std::exception& e) {
+                if (msg->chat) {
+                    _bot->getApi().sendMessage(msg->chat->id,
+                        fmt::format("⚠️ Ошибка при выполнении команды: {}", e.what()));
+                }
+            }
+        });
     }
 
     Wallet loadWallet(std::int64_t chatId) {
