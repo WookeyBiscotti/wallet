@@ -55,7 +55,7 @@ struct WalletDayReport {
         }
 
         SQLite::Statement queryFirstWalletEntry(db,
-            fmt::format("SELECT MIN(ts) FROM WalletEntries WHERE chat_id = {}", wallet.chatId));
+            fmt::format("SELECT MIN(ts) FROM Entries WHERE chat_id = {}", wallet.chatId));
 
         if (!queryFirstWalletEntry.executeStep()) {
             WalletDayReport report;
@@ -75,7 +75,7 @@ struct WalletDayReport {
     }
 
     void save(SQLite::Database& db) {
-        db.exec(fmt::format("INSERT INTO WalletDayReports VALUES({},{},{},{},{})", chatId, dateToInt(date), dayExpenses,
+        db.exec(fmt::format("INSERT INTO DayReports VALUES({},{},{},{},{})", chatId, dateToInt(date), dayExpenses,
             dayBalance, dayLimit));
     }
 
@@ -87,7 +87,7 @@ private:
             return std::nullopt;
         }
 
-        SQLite::Statement query(db, fmt::format("SELECT * FROM WalletDayReports WHERE chat_id = {} AND date = {}",
+        SQLite::Statement query(db, fmt::format("SELECT * FROM DayReports WHERE chat_id = {} AND date = {}",
                                         wallet.chatId, dateToInt(day)));
 
         if (query.executeStep()) {

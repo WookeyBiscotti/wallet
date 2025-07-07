@@ -20,14 +20,14 @@ struct WalletEntry {
     std::string description;
 
     void save(SQLite::Database& db) {
-        db.exec(fmt::format("INSERT INTO WalletEntries VALUES(NULL,{},{},{},\"{}\")", chatId, absl::ToUnixSeconds(time),
+        db.exec(fmt::format("INSERT INTO Entries VALUES(NULL,{},{},{},\"{}\")", chatId, absl::ToUnixSeconds(time),
             amount, description));
     }
 
     template<class Fn>
     static void loadForEach(SQLite::Database& db, std::int64_t chatId, absl::Time first, absl::Time last, Fn&& fn) {
         SQLite::Statement query(db,
-            fmt::format("SELECT * FROM WalletEntries WHERE chat_id = {} AND ts >= {} AND ts <= {}", chatId,
+            fmt::format("SELECT * FROM Entries WHERE chat_id = {} AND ts >= {} AND ts <= {}", chatId,
                 absl::ToUnixSeconds(first), absl::ToUnixSeconds(last)));
         while (query.executeStep()) {
             WalletEntry entry;
