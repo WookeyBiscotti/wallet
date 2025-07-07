@@ -89,9 +89,9 @@ public:
             const auto delta = wallet.dayLimit - WalletEntry::getDayAmountSum(_db, wallet).amount;
             std::string message;
             if (delta < 0) {
-                message = fmt::format("🟥 Дефицит дня: {:'.0f}₽", -delta);
+                message = fmt::format("🟥 Дефицит дня: {:.0f}₽", -delta);
             } else {
-                message = fmt::format("🟩 Осталось на день: {:'.0f}₽", delta);
+                message = fmt::format("🟩 Осталось на день: {:.0f}₽", delta);
             }
 
             _bot->getApi().sendMessage(chat->id, message);
@@ -129,10 +129,10 @@ public:
             double total = 0;
             auto data = WalletEntry::getDaysAmountSum(_db, wallet, 10);
             for (std::size_t i = 0; i != 10; ++i) {
-                message += fmt::format("📅 {} 💲 {:'.0f}\n", data[i].day, data[i].amount);
+                message += fmt::format("📅 {} 💲 {:.0f}\n", data[i].day, data[i].amount);
                 total += data[i].amount;
             }
-            message += fmt::format("━━━━━━━━━━━━━\n💰 = {:'.0f}₽", total);
+            message += fmt::format("━━━━━━━━━━━━━\n💰 = {:.0f}₽", total);
 
             _bot->getApi().sendMessage(chat->id, message);
         });
@@ -264,7 +264,8 @@ public:
             try {
                 longPoll.start();
             } catch (const std::exception& e) {
-                std::cout << e.what();
+                std::string s = e.what();
+                std::cout << s;
             }
         }
     }
