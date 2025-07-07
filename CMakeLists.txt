@@ -4,6 +4,14 @@ include(FetchContent)
 
 project(Wallet LANGUAGES CXX)
 
+## curl
+find_package(CURL REQUIRED)
+if (CURL_FOUND)
+    include_directories(${CURL_INCLUDE_DIRS})
+    add_definitions(-DHAVE_CURL)
+endif()
+
+
 set(CMAKE_CXX_STANDARD 17)
 
 FetchContent_Declare(SQLiteCpp

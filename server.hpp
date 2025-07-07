@@ -25,6 +25,7 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 
 #include <tgbot/Bot.h>
+#include <tgbot/net/CurlHttpClient.h>
 #include <tgbot/net/TgLongPoll.h>
 #include <tgbot/types/ReactionTypeEmoji.h>
 
@@ -43,7 +44,7 @@ public:
 
         loadWallets();
 
-        _bot.emplace(*token);
+        _bot.emplace(*token, _curlHttpClient);
         _bot->getApi().deleteWebhook();
 
         std::vector<TgBot::BotCommand::Ptr> commands;
@@ -300,5 +301,5 @@ private:
     std::optional<TgBot::Bot> _bot;
 
     std::unordered_map<std::int64_t, Wallet> _wallets;
-    // Scheduler _scheduler;
+    TgBot::CurlHttpClient _curlHttpClient;
 };
