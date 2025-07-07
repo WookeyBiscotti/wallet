@@ -1,19 +1,20 @@
 #pragma once
 
+#include "db/day_report.hpp"
+#include "db/entry_tag.hpp"
+#include "db/tag.hpp"
 #include "db/wallet.hpp"
-#include "db/wallet_day_report.hpp"
 #include "db/wallet_entry.hpp"
 
+#include "query_commands.hpp"
+
 #include "migration.hpp"
-#include "scheduler.hpp"
 #include "utils.hpp"
 
 #include <cstdint>
 #include <iostream>
-#include <map>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <absl/container/inlined_vector.h>
@@ -80,6 +81,9 @@ public:
                 return std::move(r);
             }()},
                 true);
+
+            _bot->getApi().sendMessage(chat->id, "❔ Добавить тэг?", nullptr, nullptr,
+                Tag::createTagsKeyboard(_db, chat->id, entry.id));
 
             if (wallet.dayLimit == 0) {
                 return;
@@ -180,7 +184,7 @@ public:
         cmdArray->command = "/get_day_limit";
         cmdArray->description = "Узнать дневной лимит";
         commands.push_back(cmdArray);
-        _bot->getEvents().onCommand("get_day_limit", [&](TgBot::Message::Ptr msg) {
+        addCommand("get_day_limit", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -206,7 +210,7 @@ public:
 
             std::string reportStr;
             for (std::size_t i = 0; i != daysCount; ++i) {
-                auto report = WalletDayReport::load(_db, wallet, lastDay - i);
+                auto report = DayReport::load(_db, wallet, lastDay - i);
                 if (report) {
                     reportStr += "`" + report->toString() + "`\n";
                 } else {
@@ -250,13 +254,83 @@ public:
         cmdArray->command = "/report_1";
         cmdArray->description = "Узнать отчет за предыдущий день";
         commands.push_back(cmdArray);
-        _bot->getEvents().onCommand("report_1", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
+        addCommand("report_1", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
 
         cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
         cmdArray->command = "/report_7";
         cmdArray->description = "Узнать отчет за предыдущую неделю";
         commands.push_back(cmdArray);
-        _bot->getEvents().onCommand("report_7", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
+        addCommand("report_7", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/add_tag";
+        cmdArray->description = "Добавить тэг трат";
+        commands.push_back(cmdArray);
+        addCommand("add_tag", [&](TgBot::Message::Ptr msg) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(msg->text), ' ');
+
+            if (strings.size() < 2) {
+                _bot->getApi().sendMessage(chat->id, "⚠️ Необходимо указать тег. Например: `/add_tag 🍟 Еда`");
+                return;
+            }
+
+            const auto tag = std::string(strings[1].data(), strings.back().data() + strings.back().size());
+
+            auto wallet = loadWallet(chat->id);
+
+            Tag walletTag;
+            walletTag.chatId = wallet.chatId;
+            walletTag.tag = tag;
+
+            walletTag.save(_db);
+
+            _bot->getApi().sendMessage(chat->id, fmt::format("✅ Тэг добавлен: {}", tag));
+        });
+
+        _bot->getEvents().onCallbackQuery([&](const TgBot::CallbackQuery::Ptr query) {
+            if (!query->message || !query->message->chat) {
+                return;
+            }
+            auto chat = query->message->chat;
+
+            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(query->data), ' ');
+
+            if (strings.size() < 1) {
+                return;
+            }
+
+            if (strings[0] == DELETE_MESSAGE) {
+                _bot->getApi().deleteMessage(chat->id, query->message->messageId);
+            } else if (strings[0] == ADD_ENTRY_TAG) {
+                if (strings.size() != 3) {
+                    return;
+                }
+
+                auto entryId = strToT<std::int64_t>(strings[1]);
+                if (!entryId) {
+                    return;
+                }
+
+                auto tagId = strToT<std::int64_t>(strings[2]);
+                if (!tagId) {
+                    return;
+                }
+
+                EntryTag eTag;
+                eTag.entryId = *entryId;
+                eTag.tagId = *tagId;
+                if (!eTag.save(_db)) {
+                    return;
+                }
+
+                _bot->getApi().deleteMessage(chat->id, query->message->messageId);
+            }
+        });
 
         _bot->getApi().setMyCommands(commands);
         TgBot::TgLongPoll longPoll(*_bot);

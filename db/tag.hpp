@@ -1,0 +1,76 @@
+#pragma once
+
+#include "../query_commands.hpp"
+#include "../utils.hpp"
+#include "wallet.hpp"
+#include "wallet_entry.hpp"
+
+#include <SQLiteCpp/SQLiteCpp.h>
+
+#include <tgbot/tgbot.h>
+
+#include <absl/time/clock.h>
+#include <absl/time/time.h>
+
+#include <fmt/format.h>
+
+#include <cstdint>
+
+struct Tag {
+    std::int64_t id;
+    std::int64_t chatId;
+    std::string tag;
+
+    void save(SQLite::Database& db) const {
+        SQLite::Statement saver(db, fmt::format("INSERT OR REPLACE INTO Tags VALUES(NULL, {}, ?)", chatId));
+        saver.bind(1, tag);
+        saver.exec();
+    }
+
+    template<class Fn>
+    static void loadForEach(SQLite::Database& db, std::int64_t chatId, Fn&& fn) {
+        SQLite::Statement query(db, fmt::format("SELECT * FROM Tags WHERE chat_id = {}", chatId));
+        while (query.executeStep()) {
+            Tag tag;
+            tag.id = query.getColumn(0).getInt64();
+            tag.chatId = query.getColumn(1).getInt64();
+            tag.tag = query.getColumn(2).getString();
+
+            fn(std::move(tag));
+        }
+    }
+
+    static TgBot::InlineKeyboardMarkup::Ptr createTagsKeyboard(SQLite::Database& db, std::int64_t chatId,
+        std::int64_t entryId) {
+        std::vector<Tag> tags;
+
+        loadForEach(db, chatId, [&](Tag tag) { tags.push_back(tag); });
+
+        TgBot::InlineKeyboardMarkup::Ptr keyboard(new TgBot::InlineKeyboardMarkup);
+
+        TgBot::InlineKeyboardButton::Ptr cancelButton(new TgBot::InlineKeyboardButton);
+        cancelButton->text = "⬜ Добавить без тега.";
+        cancelButton->callbackData = fmt::format("{}", DELETE_MESSAGE);
+        keyboard->inlineKeyboard.push_back({cancelButton});
+
+        std::vector<TgBot::InlineKeyboardButton::Ptr> currentRow;
+        std::size_t i = 0;
+        for (const auto& t : tags) {
+            if (i % 4 == 3) {
+                keyboard->inlineKeyboard.push_back(currentRow);
+                currentRow.clear();
+            }
+            TgBot::InlineKeyboardButton::Ptr checkButton(new TgBot::InlineKeyboardButton);
+            checkButton->text = t.tag;
+            checkButton->callbackData = fmt::format("{} {} {}", ADD_ENTRY_TAG, entryId, t.id);
+            currentRow.push_back(checkButton);
+        }
+
+        if (!currentRow.empty()) {
+            keyboard->inlineKeyboard.push_back(currentRow);
+            currentRow.clear();
+        }
+
+        return keyboard;
+    }
+};

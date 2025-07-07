@@ -1,0 +1,7 @@
+CREATE TABLE Tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER,
+    tag TEXT
+);
+
+CREATE TABLE EntryTags (entry_id INTEGER, tag_id INTEGER);

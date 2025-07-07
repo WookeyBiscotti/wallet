@@ -21,7 +21,7 @@ static inline absl::CivilDay intToDate(std::int64_t dayInt) {
     return absl::CivilDay(dayInt / 10000, (dayInt / 100) % 100, dayInt % 100);
 }
 
-struct WalletDayReport {
+struct DayReport {
     std::int64_t chatId;
     absl::CivilDay date;
     double dayExpenses;
@@ -48,7 +48,7 @@ struct WalletDayReport {
             formatWithApostrophes(dayExpenses), color, formatWithApostrophes(dayBalance));
     }
 
-    static std::optional<WalletDayReport> load(SQLite::Database& db, const Wallet& wallet, absl::CivilDay day) {
+    static std::optional<DayReport> load(SQLite::Database& db, const Wallet& wallet, absl::CivilDay day) {
         const auto nowDay = absl::ToCivilDay(absl::Now(), wallet.timeZone);
         if (nowDay <= day) {
             return std::nullopt;
@@ -58,7 +58,7 @@ struct WalletDayReport {
             fmt::format("SELECT MIN(ts) FROM Entries WHERE chat_id = {}", wallet.chatId));
 
         if (!queryFirstWalletEntry.executeStep()) {
-            WalletDayReport report;
+            DayReport report;
             report.chatId = wallet.chatId;
             report.date = day;
             report.dayLimit = wallet.dayLimit;
@@ -80,7 +80,7 @@ struct WalletDayReport {
     }
 
 private:
-    static std::optional<WalletDayReport> load(SQLite::Database& db, const Wallet& wallet, absl::CivilDay day,
+    static std::optional<DayReport> load(SQLite::Database& db, const Wallet& wallet, absl::CivilDay day,
         absl::CivilDay firstWalletEntryDay) {
 
         if (day < firstWalletEntryDay) {
@@ -91,7 +91,7 @@ private:
                                         wallet.chatId, dateToInt(day)));
 
         if (query.executeStep()) {
-            WalletDayReport report;
+            DayReport report;
             report.chatId = query.getColumn(0).getInt64();
             report.date = intToDate(query.getColumn(1).getInt64());
             report.dayExpenses = query.getColumn(2).getDouble();
@@ -103,7 +103,7 @@ private:
 
         auto dayBeforeReport = load(db, wallet, day - 1, firstWalletEntryDay);
 
-        WalletDayReport report;
+        DayReport report;
         report.chatId = wallet.chatId;
         report.date = day;
         report.dayExpenses = WalletEntry::getDayAmountSum(db, wallet, day).amount;
