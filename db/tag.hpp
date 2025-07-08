@@ -41,7 +41,7 @@ struct Tag {
     }
 
     static TgBot::InlineKeyboardMarkup::Ptr createTagsKeyboard(SQLite::Database& db, std::int64_t chatId,
-        std::int64_t entryId) {
+        std::int64_t entryId, std::int64_t messageId) {
         std::vector<Tag> tags;
 
         loadForEach(db, chatId, [&](Tag tag) { tags.push_back(tag); });
@@ -52,21 +52,26 @@ struct Tag {
         TgBot::InlineKeyboardMarkup::Ptr keyboard(new TgBot::InlineKeyboardMarkup);
 
         TgBot::InlineKeyboardButton::Ptr cancelButton(new TgBot::InlineKeyboardButton);
-        cancelButton->text = "⬜ Добавить без тега.";
+        cancelButton->text = "⬜ Добавить без тэга";
         cancelButton->callbackData = fmt::format("{}", DELETE_MESSAGE);
-        keyboard->inlineKeyboard.push_back({cancelButton});
+
+        TgBot::InlineKeyboardButton::Ptr refreshButton(new TgBot::InlineKeyboardButton);
+        refreshButton->text = "🔄 Обновить тэги";
+        refreshButton->callbackData = fmt::format("{} {} {}", REFRESH_TAGS, entryId, absl::ToUnixSeconds(absl::Now()));
+        keyboard->inlineKeyboard.push_back({cancelButton, refreshButton});
 
         std::vector<TgBot::InlineKeyboardButton::Ptr> currentRow;
         std::size_t i = 0;
         for (const auto& t : tags) {
-            if (i % 4 == 3) {
+            if (i++ == 3) {
                 keyboard->inlineKeyboard.push_back(currentRow);
                 currentRow.clear();
+                i = 0;
             }
-            TgBot::InlineKeyboardButton::Ptr checkButton(new TgBot::InlineKeyboardButton);
-            checkButton->text = t.tag;
-            checkButton->callbackData = fmt::format("{} {} {}", ADD_ENTRY_TAG, entryId, t.id);
-            currentRow.push_back(checkButton);
+            TgBot::InlineKeyboardButton::Ptr button(new TgBot::InlineKeyboardButton);
+            button->text = t.tag;
+            button->callbackData = fmt::format("{} {} {}", ADD_ENTRY_TAG, entryId, t.id);
+            currentRow.push_back(button);
         }
 
         if (!currentRow.empty()) {

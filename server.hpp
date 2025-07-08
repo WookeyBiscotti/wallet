@@ -50,57 +50,63 @@ public:
 
         std::vector<TgBot::BotCommand::Ptr> commands;
         _bot->getEvents().onAnyMessage([&](TgBot::Message::Ptr msg) {
-            SQLite::Transaction tr(_db);
-            auto chat = msg->chat;
-            if (!chat) {
-                return;
+            try {
+                SQLite::Transaction tr(_db);
+                auto chat = msg->chat;
+                if (!chat) {
+                    return;
+                }
+                std::vector<std::string_view> strings = absl::StrSplit(std::string_view(msg->text), ' ');
+                if (strings.size() < 2) {
+                    return;
+                }
+
+                auto amount = strToDouble(strings[0]);
+                if (!amount) {
+                    return;
+                }
+
+                auto wallet = loadWallet(chat->id);
+
+                WalletEntry entry;
+                entry.amount = *amount;
+                entry.description = std::string(strings[1].data(), strings.back().data() + strings.back().size());
+                entry.time = absl::FromUnixSeconds(msg->date);
+                entry.chatId = chat->id;
+
+                entry.save(_db);
+
+                _bot->getApi().setMessageReaction(chat->id, msg->messageId, {[] {
+                    auto r = std::make_shared<TgBot::ReactionTypeEmoji>();
+                    r->emoji = "⚡";
+                    return std::move(r);
+                }()},
+                    true);
+
+                tr.commit();
+
+                if (auto tagsKeyboard = Tag::createTagsKeyboard(_db, chat->id, entry.id, msg->messageId)) {
+                    _bot->getApi().sendMessage(chat->id, "❔ Добавить тэг?", nullptr, nullptr, tagsKeyboard);
+                }
+
+                if (wallet.dayLimit == 0) {
+                    return;
+                }
+                const auto delta = wallet.dayLimit - WalletEntry::getDayAmountSum(_db, wallet).amount;
+                std::string message;
+                if (delta < 0) {
+                    message = fmt::format("🟥 Дефицит дня: {:.0f}₽", -delta);
+                } else {
+                    message = fmt::format("🟩 Осталось на день: {:.0f}₽", delta);
+                }
+
+                _bot->getApi().sendMessage(chat->id, message);
+            } catch (const std::exception& e) {
+                if (msg->chat) {
+                    _bot->getApi().sendMessage(msg->chat->id,
+                        fmt::format("⚠️ Ошибка при выполнении команды: {}", e.what()));
+                }
             }
-            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(msg->text), ' ');
-            if (strings.size() < 2) {
-                return;
-            }
-
-            auto amount = strToDouble(strings[0]);
-            if (!amount) {
-                return;
-            }
-
-            auto wallet = loadWallet(chat->id);
-
-            WalletEntry entry;
-            entry.amount = *amount;
-            entry.description = std::string(strings[1].data(), strings.back().data() + strings.back().size());
-            entry.time = absl::FromUnixSeconds(msg->date);
-            entry.chatId = chat->id;
-
-            entry.save(_db);
-
-            _bot->getApi().setMessageReaction(chat->id, msg->messageId, {[] {
-                auto r = std::make_shared<TgBot::ReactionTypeEmoji>();
-                r->emoji = "⚡";
-                return std::move(r);
-            }()},
-                true);
-
-            tr.commit();
-
-            if (auto tagsKeyboard = Tag::createTagsKeyboard(_db, chat->id, entry.id)) {
-                _bot->getApi().sendMessage(chat->id, "❔ Добавить тэг?", nullptr, nullptr,
-                    Tag::createTagsKeyboard(_db, chat->id, entry.id));
-            }
-
-            if (wallet.dayLimit == 0) {
-                return;
-            }
-            const auto delta = wallet.dayLimit - WalletEntry::getDayAmountSum(_db, wallet).amount;
-            std::string message;
-            if (delta < 0) {
-                message = fmt::format("🟥 Дефицит дня: {:.0f}₽", -delta);
-            } else {
-                message = fmt::format("🟩 Осталось на день: {:.0f}₽", delta);
-            }
-
-            _bot->getApi().sendMessage(chat->id, message);
         });
 
         TgBot::BotCommand::Ptr cmdArray(new TgBot::BotCommand);
@@ -295,42 +301,65 @@ public:
         });
 
         _bot->getEvents().onCallbackQuery([&](const TgBot::CallbackQuery::Ptr query) {
-            if (!query->message || !query->message->chat) {
-                return;
-            }
-            auto chat = query->message->chat;
+            try {
+                if (!query->message || !query->message->chat) {
+                    return;
+                }
+                auto chat = query->message->chat;
 
-            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(query->data), ' ');
+                std::vector<std::string_view> strings = absl::StrSplit(std::string_view(query->data), ' ');
 
-            if (strings.size() < 1) {
-                return;
-            }
-
-            if (strings[0] == DELETE_MESSAGE) {
-                _bot->getApi().deleteMessage(chat->id, query->message->messageId);
-            } else if (strings[0] == ADD_ENTRY_TAG) {
-                if (strings.size() != 3) {
+                if (strings.size() < 1) {
                     return;
                 }
 
-                auto entryId = strToT<std::int64_t>(strings[1]);
-                if (!entryId) {
-                    return;
-                }
+                if (strings[0] == DELETE_MESSAGE) {
+                    _bot->getApi().deleteMessage(chat->id, query->message->messageId);
+                } else if (strings[0] == ADD_ENTRY_TAG) {
+                    if (strings.size() != 3) {
+                        return;
+                    }
 
-                auto tagId = strToT<std::int64_t>(strings[2]);
-                if (!tagId) {
-                    return;
-                }
+                    auto entryId = strToT<std::int64_t>(strings[1]);
+                    if (!entryId) {
+                        return;
+                    }
 
-                EntryTag eTag;
-                eTag.entryId = *entryId;
-                eTag.tagId = *tagId;
-                if (!eTag.save(_db)) {
-                    return;
-                }
+                    auto tagId = strToT<std::int64_t>(strings[2]);
+                    if (!tagId) {
+                        return;
+                    }
 
-                _bot->getApi().deleteMessage(chat->id, query->message->messageId);
+                    EntryTag eTag;
+                    eTag.entryId = *entryId;
+                    eTag.tagId = *tagId;
+                    if (!eTag.save(_db)) {
+                        return;
+                    }
+
+                    _bot->getApi().deleteMessage(chat->id, query->message->messageId);
+                } else if (strings[0] == REFRESH_TAGS) {
+                    // 3rd param is dummy
+                    if (strings.size() != 3) {
+                        return;
+                    }
+
+                    auto entryId = strToT<std::int64_t>(strings[1]);
+                    if (!entryId) {
+                        return;
+                    }
+
+                    if (auto tagsKeyboard =
+                            Tag::createTagsKeyboard(_db, chat->id, *entryId, query->message->messageId)) {
+                        _bot->getApi().editMessageText("❔ Добавить тэг?", chat->id, query->message->messageId, "", "",
+                            nullptr, tagsKeyboard);
+                    }
+                }
+            } catch (const std::exception& e) {
+                if (query->message && query->message->chat) {
+                    _bot->getApi().sendMessage(query->message->chat->id,
+                        fmt::format("⚠️ Ошибка при выполнении команды: {}", e.what()));
+                }
             }
         });
 
