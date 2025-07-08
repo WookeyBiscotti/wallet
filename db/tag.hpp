@@ -40,6 +40,14 @@ struct Tag {
         }
     }
 
+    static std::unordered_map<std::uint64_t, std::string> tagsIdToStr(SQLite::Database& db, std::int64_t chatId) {
+        std::unordered_map<std::uint64_t, std::string> tags;
+
+        loadForEach(db, chatId, [&](Tag tag) { tags[tag.id] = tag.tag; });
+
+        return tags;
+    }
+
     static TgBot::InlineKeyboardMarkup::Ptr createTagsKeyboard(SQLite::Database& db, std::int64_t chatId,
         std::int64_t entryId, std::int64_t messageId) {
         std::vector<Tag> tags;

@@ -84,4 +84,33 @@ struct WalletEntry {
 
         return getDaysAmountSum(db, wallet, nowDay, daysCount);
     }
+
+    struct TagsReport {
+        std::unordered_map<std::int64_t, double> byTags;
+        double total;
+        double withoutTags;
+    };
+
+    static TagsReport getReportByTags(SQLite::Database& db, const Wallet& wallet, std::size_t daysCount) {
+        const auto toTs = absl::Now();
+        const auto fromTs = absl::FromCivil(absl::ToCivilDay(toTs, wallet.timeZone) - daysCount, wallet.timeZone);
+
+        TagsReport report{};
+
+        SQLite::Statement query(db,
+            fmt::format("SELECT amount, tag_id FROM Entries LEFT JOIN "
+                        "EntryTags ON Entries.id=EntryTags.entry_id WHERE chat_id = {} AND ts >= {} AND ts <= {} ",
+                wallet.chatId, absl::ToUnixSeconds(fromTs), absl::ToUnixSeconds(toTs)));
+        while (query.executeStep()) {
+            auto amount = query.getColumn(0).getDouble();
+            report.total += amount;
+            if (query.isColumnNull(1)) {
+                report.withoutTags += amount;
+            } else {
+                report.byTags[query.getColumn(1).getInt64()] += amount;
+            }
+        }
+
+        return report;
+    }
 };

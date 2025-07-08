@@ -364,6 +364,85 @@ public:
             }
         });
 
+        auto tagsReportFn = [&](TgBot::Message::Ptr msg, std::size_t daysCount) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            auto wallet = loadWallet(chat->id);
+
+            auto report = WalletEntry::getReportByTags(_db, wallet, daysCount);
+            auto tagsMap = Tag::tagsIdToStr(_db, chat->id);
+
+            std::string reportStr;
+            for (const auto& t : report.byTags) {
+                auto tagStrIt = tagsMap.find(t.first);
+                std::string_view name;
+                if (tagStrIt != tagsMap.end()) {
+                    name = tagStrIt->second;
+                } else {
+                    name = "📛 Неизвестный тэг";
+                }
+
+                reportStr += fmt::format("`{} {:.0f}₽ {:.0f}%`\n", name, t.second, 100 * t.second / report.total);
+            }
+
+            reportStr += fmt::format("`❌🏷️ Без тэга {:.0f}₽ {:.0f}%`\n", report.withoutTags,
+                100 * report.withoutTags / report.total);
+
+            reportStr += "━━━━━━━━━━━━━\n";
+            reportStr += fmt::format("`💰 Всего {:.0f}₽`\n", report.total);
+
+            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
+        };
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/total_report";
+        cmdArray->description = "Узнать сумарный отчет";
+        commands.push_back(cmdArray);
+        addCommand("total_report", [&](TgBot::Message::Ptr msg) {
+            auto chat = msg->chat;
+            if (!chat) {
+                return;
+            }
+
+            std::vector<std::string_view> strings = absl::StrSplit(std::string_view(msg->text), ' ');
+
+            if (strings.size() != 2) {
+                _bot->getApi().sendMessage(chat->id,
+                    "⚠️ Необходимо указать количество дней. Например: `/total_report 7`");
+                return;
+            }
+
+            auto daysCount = strToT<std::size_t>(strings[1]);
+            if (!daysCount) {
+                _bot->getApi().sendMessage(chat->id, "⚠️ Количество дней должно быть числом. Например: `7`");
+
+                return;
+            }
+
+            tagsReportFn(msg, *daysCount);
+        });
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/total_report_1";
+        cmdArray->description = "Узнать сумарный отчет за предыдущий день";
+        commands.push_back(cmdArray);
+        addCommand("total_report_1", [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 1); });
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/total_report_7";
+        cmdArray->description = "Узнать сумарный отчет за предыдущую неделю";
+        commands.push_back(cmdArray);
+        addCommand("total_report_7", [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 7); });
+
+        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        cmdArray->command = "/total_report_30";
+        cmdArray->description = "Узнать сумарный отчет за 30 дней";
+        commands.push_back(cmdArray);
+        addCommand("total_report_30", [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 30); });
+
         _bot->getApi().setMyCommands(commands);
         TgBot::TgLongPoll longPoll(*_bot);
         while (true) {
