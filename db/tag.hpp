@@ -45,6 +45,9 @@ struct Tag {
         std::vector<Tag> tags;
 
         loadForEach(db, chatId, [&](Tag tag) { tags.push_back(tag); });
+        if (tags.empty()) {
+            return nullptr;
+        }
 
         TgBot::InlineKeyboardMarkup::Ptr keyboard(new TgBot::InlineKeyboardMarkup);
 

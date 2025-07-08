@@ -84,8 +84,10 @@ public:
 
             tr.commit();
 
-            _bot->getApi().sendMessage(chat->id, "❔ Добавить тэг?", nullptr, nullptr,
-                Tag::createTagsKeyboard(_db, chat->id, entry.id));
+            if (auto tagsKeyboard = Tag::createTagsKeyboard(_db, chat->id, entry.id)) {
+                _bot->getApi().sendMessage(chat->id, "❔ Добавить тэг?", nullptr, nullptr,
+                    Tag::createTagsKeyboard(_db, chat->id, entry.id));
+            }
 
             if (wallet.dayLimit == 0) {
                 return;
