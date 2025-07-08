@@ -48,9 +48,10 @@ file(GLOB_RECURSE MIGRATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/migration/*")
 
 add_custom_command(
     OUTPUT "${CMAKE_BINARY_DIR}/.migration_copied"
+    COMMAND ${CMAKE_COMMAND} -E rm -R "${CMAKE_BINARY_DIR}/migration/"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_LIST_DIR}/migration" "${CMAKE_BINARY_DIR}/migration"
     COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_BINARY_DIR}/.migration_copied"
-    DEPENDS "${MIGRATION_SOURCES}"
+    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/migration/" "${MIGRATION_SOURCES}"
 )
 
 add_custom_target(copy_migration DEPENDS "${CMAKE_BINARY_DIR}/.migration_copied")

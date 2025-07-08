@@ -18,10 +18,11 @@ struct WalletEntry {
     absl::Time time;
     double amount;
     std::string description;
+    std::int64_t messageId;
 
     void save(SQLite::Database& db) {
-        SQLite::Statement query(db, fmt::format("INSERT INTO Entries VALUES(NULL,{},{},{},\"{}\") RETURNING *;", chatId,
-                                        absl::ToUnixSeconds(time), amount, description));
+        SQLite::Statement query(db, fmt::format("INSERT INTO Entries VALUES(NULL,{},{},{},\"{}\", {}) RETURNING *;",
+                                        chatId, absl::ToUnixSeconds(time), amount, description, messageId));
         query.executeStep();
         id = query.getColumn(0).getInt64();
     }
@@ -36,7 +37,8 @@ struct WalletEntry {
             entry.chatId = query.getColumn(1).getInt64();
             entry.time = absl::FromUnixSeconds(query.getColumn(2).getInt64());
             entry.amount = query.getColumn(3).getDouble();
-            entry.description = query.getColumn(4).getDouble();
+            entry.description = query.getColumn(4).getString();
+            entry.messageId = query.getColumn(5).getInt64();
 
             fn(entry);
         }

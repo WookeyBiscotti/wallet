@@ -73,6 +73,7 @@ public:
                 entry.description = std::string(strings[1].data(), strings.back().data() + strings.back().size());
                 entry.time = absl::FromUnixSeconds(msg->date);
                 entry.chatId = chat->id;
+                entry.messageId = msg->messageId;
 
                 entry.save(_db);
 
