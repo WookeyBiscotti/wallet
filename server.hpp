@@ -82,6 +82,8 @@ public:
             }()},
                 true);
 
+            tr.commit();
+
             _bot->getApi().sendMessage(chat->id, "❔ Добавить тэг?", nullptr, nullptr,
                 Tag::createTagsKeyboard(_db, chat->id, entry.id));
 
@@ -97,8 +99,6 @@ public:
             }
 
             _bot->getApi().sendMessage(chat->id, message);
-
-            tr.commit();
         });
 
         TgBot::BotCommand::Ptr cmdArray(new TgBot::BotCommand);
