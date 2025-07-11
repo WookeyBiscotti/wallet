@@ -366,7 +366,7 @@ public:
 
                 table << name << t.second << fmt::format("{:.0f}", 100 * t.second / report.total) << fort::endr;
             }
-            table << "❌🏷️ Без тэга" << report.withoutTags << 100 * report.withoutTags / report.total << fort::endr;
+            table << "❌🏷️ Без тэга" << report.withoutTags << fmt::format("{:.0f}",100 * report.withoutTags / report.total) << fort::endr;
 
             table << fort::separator << "💰💲 Всего" << report.total << fort::endr;
 
