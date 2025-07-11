@@ -38,11 +38,17 @@ FetchContent_Declare(fmt
     GIT_SHALLOW ON
 )
 
-FetchContent_MakeAvailable(SQLiteCpp tgbot-cpp abseil-cpp fmt)
+FetchContent_Declare(libfort
+    GIT_REPOSITORY https://github.com/seleznevae/libfort.git
+    GIT_TAG develop
+    GIT_SHALLOW ON
+)
+
+FetchContent_MakeAvailable(SQLiteCpp tgbot-cpp abseil-cpp fmt libfort)
 
 add_executable(wallet_bot main.cpp)
 
-target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot fmt::fmt)
+target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot fmt::fmt libfort::fort)
 
 file(GLOB_RECURSE MIGRATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/migration/*")
 

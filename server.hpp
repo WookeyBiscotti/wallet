@@ -11,19 +11,16 @@
 #include "migration.hpp"
 #include "utils.hpp"
 
-#include <cstdint>
-#include <iostream>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include <absl/container/inlined_vector.h>
 #include <absl/strings/charconv.h>
+#include <absl/strings/str_replace.h>
 #include <absl/strings/str_split.h>
 #include <absl/time/clock.h>
 #include <absl/time/time.h>
 
 #include <SQLiteCpp/SQLiteCpp.h>
+
+#include <fort.hpp>
 
 #include <tgbot/Bot.h>
 #include <tgbot/net/CurlHttpClient.h>
@@ -31,6 +28,12 @@
 #include <tgbot/types/ReactionTypeEmoji.h>
 
 #include <fmt/format.h>
+
+#include <cstdint>
+#include <iostream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 class Server {
 public:
@@ -109,12 +112,7 @@ public:
                 }
             }
         });
-
-        TgBot::BotCommand::Ptr cmdArray(new TgBot::BotCommand);
-        cmdArray->command = "sumday";
-        cmdArray->description = "Сумма за день";
-        commands.push_back(cmdArray);
-        addCommand("sumday", [&](TgBot::Message::Ptr msg) {
+        addCommand("sumday", "Сумма за день", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -125,12 +123,7 @@ public:
             _bot->getApi().sendMessage(chat->id,
                 fmt::format("{:.0f}", WalletEntry::getDayAmountSum(_db, wallet).amount));
         });
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "stat_ten";
-        cmdArray->description = "Статистика за 10 дней";
-        commands.push_back(cmdArray);
-        addCommand("stat_ten", [&](TgBot::Message::Ptr msg) {
+        addCommand("stat_ten", "Статистика за 10 дней", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -138,22 +131,26 @@ public:
 
             auto wallet = loadWallet(chat->id);
 
-            std::string message;
+            fort::utf8_table table;
+            table.set_cell_text_align(fort::text_align::center);
+            table.set_border_style(FT_PLAIN_STYLE);
+            table << fort::header << "Дата" << "Траты" << fort::endr;
+
             double total = 0;
             auto data = WalletEntry::getDaysAmountSum(_db, wallet, 10);
             for (std::size_t i = 0; i != 10; ++i) {
-                message += fmt::format("📅 {} 💲 {:.0f}\n", data[i].day, data[i].amount);
+                table << data[i].day << data[i].amount << fort::endr;
                 total += data[i].amount;
             }
-            message += fmt::format("━━━━━━━━━━━━━\n💰 = {:.0f}₽", total);
+            table << fort::separator;
+            table << "Всего" << fmt::format("{:.0f}₽", total) << fort::endr;
 
-            _bot->getApi().sendMessage(chat->id, message);
+            std::string reportStr = "`" + absl::StrReplaceAll(table.to_string(), {{"\n", "`\n`"}}) + "`";
+
+            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
         });
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/set_day_limit";
-        cmdArray->description = "Установить дневной лимит";
-        commands.push_back(cmdArray);
-        addCommand("set_day_limit", [&](TgBot::Message::Ptr msg) {
+
+        addCommand("set_day_limit", "Установить дневной лимит", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -189,11 +186,7 @@ public:
 
             tr.commit();
         });
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/get_day_limit";
-        cmdArray->description = "Узнать дневной лимит";
-        commands.push_back(cmdArray);
-        addCommand("get_day_limit", [&](TgBot::Message::Ptr msg) {
+        addCommand("get_day_limit", "Узнать дневной лимит", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -202,11 +195,6 @@ public:
             auto wallet = loadWallet(chat->id);
             _bot->getApi().sendMessage(chat->id, fmt::format("🕑💰 Дневной лимит: {}", wallet.dayLimit));
         });
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/report";
-        cmdArray->description = "Узнать отчет за N дней";
-        commands.push_back(cmdArray);
 
         auto reportFn = [&](TgBot::Message::Ptr msg, std::size_t daysCount) {
             auto chat = msg->chat;
@@ -217,26 +205,28 @@ public:
             auto wallet = loadWallet(chat->id);
             const auto lastDay = absl::ToCivilDay(absl::Now(), wallet.timeZone) - 1;
 
-            std::string reportStr;
+            fort::utf8_table table;
+            table.set_border_style(FT_PLAIN_STYLE);
+            table.set_cell_text_align(fort::text_align::center);
+            table << fort::header << "Дата" << "Траты" << "Баланс" << fort::endr;
+
             for (std::size_t i = 0; i != daysCount; ++i) {
                 auto report = DayReport::load(_db, wallet, lastDay - i);
                 if (report) {
-                    reportStr += "`" + report->toString() + "`\n";
+                    table << fmt::format("{:02d}/{:02d}/{}", report->date.day(), report->date.month(),
+                                 report->date.year() % 100)
+                          << fmt::format("{}₽", report->dayExpenses) << fmt::format("{}₽", report->dayBalance);
                 } else {
                     break;
                 }
             }
 
-            if (!reportStr.empty()) {
-                _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
-            } else {
-                _bot->getApi().sendMessage(chat->id,
-                    fmt::format("⚠️ Невозможно получить отчет за этот день: 📅 {:02d}/{:02d}/{}", lastDay.day(),
-                        lastDay.month(), lastDay.year()));
-            }
+            std::string reportStr = "`" + absl::StrReplaceAll(table.to_string(), {{"\n", "`\n`"}}) + "`";
+
+            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
         };
 
-        addCommand("report", [&](TgBot::Message::Ptr msg) {
+        addCommand("report", "Узнать отчет за N дней", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -258,24 +248,9 @@ public:
 
             reportFn(msg, *daysCount);
         });
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/report_1";
-        cmdArray->description = "Узнать отчет за предыдущий день";
-        commands.push_back(cmdArray);
-        addCommand("report_1", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/report_7";
-        cmdArray->description = "Узнать отчет за предыдущую неделю";
-        commands.push_back(cmdArray);
-        addCommand("report_7", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/add_tag";
-        cmdArray->description = "Добавить тэг трат";
-        commands.push_back(cmdArray);
-        addCommand("add_tag", [&](TgBot::Message::Ptr msg) {
+        addCommand("report_1", "Узнать отчет за предыдущий день", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
+        addCommand("report_7", "Узнать отчет за предыдущую неделю", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
+        addCommand("add_tag", "Добавить тэг трат", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -375,7 +350,11 @@ public:
             auto report = WalletEntry::getReportByTags(_db, wallet, daysCount);
             auto tagsMap = Tag::tagsIdToStr(_db, chat->id);
 
-            std::string reportStr;
+            fort::utf8_table table;
+            table.set_border_style(FT_PLAIN_STYLE);
+            table.set_cell_text_align(fort::text_align::center);
+            table << fort::header << "Тэг" << "Сумма" << "Доля" << fort::endr;
+
             for (const auto& t : report.byTags) {
                 auto tagStrIt = tagsMap.find(t.first);
                 std::string_view name;
@@ -385,23 +364,19 @@ public:
                     name = "📛 Неизвестный тэг";
                 }
 
-                reportStr += fmt::format("`{} {:.0f}₽ {:.0f}%`\n", name, t.second, 100 * t.second / report.total);
+                table << name << t.second << 100 * t.second / report.total << fort::endr;
             }
+            table << "❌🏷️ Без тэга" << report.withoutTags << 100 * report.withoutTags / report.total << fort::endr;
 
-            reportStr += fmt::format("`❌🏷️ Без тэга {:.0f}₽ {:.0f}%`\n", report.withoutTags,
-                100 * report.withoutTags / report.total);
+            table << fort::separator << "💰💲 Всего" << report.total << fort::endr;
 
-            reportStr += "━━━━━━━━━━━━━\n";
-            reportStr += fmt::format("`💰 Всего {:.0f}₽`\n", report.total);
+            table[table.row_count() - 1][1].set_cell_span(2);
+
+            std::string reportStr = "`" + absl::StrReplaceAll(table.to_string(), {{"\n", "`\n`"}}) + "`";
 
             _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
         };
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/total_report";
-        cmdArray->description = "Узнать сумарный отчет";
-        commands.push_back(cmdArray);
-        addCommand("total_report", [&](TgBot::Message::Ptr msg) {
+        addCommand("total_report", "Узнать сумарный отчет", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
                 return;
@@ -424,26 +399,19 @@ public:
 
             tagsReportFn(msg, *daysCount);
         });
+        addCommand("total_report_1", "Узнать сумарный отчет за предыдущий день",
+            [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 1); });
+        addCommand("total_report_7", "Узнать сумарный отчет за предыдущую неделю",
+            [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 7); });
+        addCommand("total_report_30", "Узнать сумарный отчет за 30 дней",
+            [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 30); });
 
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/total_report_1";
-        cmdArray->description = "Узнать сумарный отчет за предыдущий день";
-        commands.push_back(cmdArray);
-        addCommand("total_report_1", [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 1); });
+        run();
+    }
 
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/total_report_7";
-        cmdArray->description = "Узнать сумарный отчет за предыдущую неделю";
-        commands.push_back(cmdArray);
-        addCommand("total_report_7", [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 7); });
-
-        cmdArray = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
-        cmdArray->command = "/total_report_30";
-        cmdArray->description = "Узнать сумарный отчет за 30 дней";
-        commands.push_back(cmdArray);
-        addCommand("total_report_30", [&](TgBot::Message::Ptr msg) { tagsReportFn(msg, 30); });
-
-        _bot->getApi().setMyCommands(commands);
+private:
+    void run() {
+        _bot->getApi().setMyCommands(_commands);
         TgBot::TgLongPoll longPoll(*_bot);
         while (true) {
             try {
@@ -454,13 +422,17 @@ public:
         }
     }
 
-private:
     void loadWallets() {
         Wallet::loadForEach(_db, [&](const Wallet& wallet) { _wallets.emplace(wallet.chatId, wallet); });
     }
 
     template<class Fn>
-    void addCommand(const std::string& name, Fn&& fn) {
+    void addCommand(const std::string& name, const std::string& descr, Fn&& fn) {
+        auto command = TgBot::BotCommand::Ptr(new TgBot::BotCommand);
+        command->command = "/" + name;
+        command->description = descr;
+        _commands.push_back(std::move(command));
+
         _bot->getEvents().onCommand(name, [&, fn = std::move(fn)](TgBot::Message::Ptr msg) {
             try {
                 fn(msg);
@@ -501,4 +473,6 @@ private:
 
     std::unordered_map<std::int64_t, Wallet> _wallets;
     TgBot::CurlHttpClient _curlHttpClient;
+
+    std::vector<TgBot::BotCommand::Ptr> _commands;
 };

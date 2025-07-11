@@ -28,7 +28,7 @@ struct DayReport {
     double dayBalance;
     double dayLimit;
 
-    std::string toString() const {
+    std::string dayColor() const {
         std::string color;
         if (dayBalance < 0) {
             if (dayLimit - dayExpenses < 0) {
@@ -43,9 +43,12 @@ struct DayReport {
                 color = "🟩";
             }
         }
+        return color;
+    }
 
+    std::string toString() const {
         return fmt::format("📅{:02d}/{:02d}:💸{:>6}₽,⚖️{}{:>6}₽", date.day(), date.month(),
-            formatWithApostrophes(dayExpenses), color, formatWithApostrophes(dayBalance));
+            formatWithApostrophes(dayExpenses), dayColor(), formatWithApostrophes(dayBalance));
     }
 
     static std::optional<DayReport> load(SQLite::Database& db, const Wallet& wallet, absl::CivilDay day) {
@@ -87,8 +90,8 @@ private:
             return std::nullopt;
         }
 
-        SQLite::Statement query(db, fmt::format("SELECT * FROM DayReports WHERE chat_id = {} AND date = {}",
-                                        wallet.chatId, dateToInt(day)));
+        SQLite::Statement query(db,
+            fmt::format("SELECT * FROM DayReports WHERE chat_id = {} AND date = {}", wallet.chatId, dateToInt(day)));
 
         if (query.executeStep()) {
             DayReport report;
