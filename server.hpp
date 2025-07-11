@@ -215,7 +215,7 @@ public:
                 if (report) {
                     table << fmt::format("{:02d}/{:02d}/{}", report->date.day(), report->date.month(),
                                  report->date.year() % 100)
-                          << fmt::format("{}₽", report->dayExpenses) << fmt::format("{}₽", report->dayBalance);
+                          << fmt::format("{}₽", report->dayExpenses) << fmt::format("{}₽", report->dayBalance) << fort::endr;
                 } else {
                     break;
                 }
