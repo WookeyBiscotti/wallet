@@ -364,7 +364,7 @@ public:
                     name = "📛 Неизвестный тэг";
                 }
 
-                table << name << t.second << 100 * t.second / report.total << fort::endr;
+                table << name << t.second << fmt::format("{:.0f}", 100 * t.second / report.total) << fort::endr;
             }
             table << "❌🏷️ Без тэга" << report.withoutTags << 100 * report.withoutTags / report.total << fort::endr;
 
