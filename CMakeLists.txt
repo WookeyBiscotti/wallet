@@ -4,13 +4,17 @@ include(FetchContent)
 
 project(Wallet LANGUAGES CXX)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 ## curl
 find_package(CURL REQUIRED)
-if (CURL_FOUND)
+if(CURL_FOUND)
     include_directories(${CURL_INCLUDE_DIRS})
     add_definitions(-DHAVE_CURL)
 endif()
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(deps REQUIRED IMPORTED_TARGET cairo pango pangocairo)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -48,7 +52,7 @@ FetchContent_MakeAvailable(SQLiteCpp tgbot-cpp abseil-cpp fmt libfort)
 
 add_executable(wallet_bot main.cpp)
 
-target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot fmt::fmt libfort::fort)
+target_link_libraries(wallet_bot PUBLIC SQLiteCpp absl::time TgBot fmt::fmt libfort::fort PkgConfig::deps)
 
 file(GLOB_RECURSE MIGRATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/migration/*")
 
