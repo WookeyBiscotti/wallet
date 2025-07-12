@@ -1,41 +1,28 @@
-#include <cairo.h>
-#include <pango/pangocairo.h>
+#include <cairomm/context.h>
+#include <cairomm/surface.h>
+#include <pangomm.h>
+#include <pangomm/init.h>
 
 int main() {
-    // Создаём поверхность Cairo (например, изображение PNG)
-    cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 800, 200);
-    cairo_t *cr = cairo_create(surface);
+    Pango::init();
+    // Create a Cairo surface and context
+    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_ARGB32, 200, 100);
+    auto cr = Cairo::Context::create(surface);
 
-    // Устанавливаем белый фон
-    cairo_set_source_rgb(cr, 1, 1, 1);
-    cairo_paint(cr);
+    // Create a Pango Layout
+    auto layout = Pango::Layout::create(cr);
+    layout->update_from_cairo_context(cr);
 
-    // Создаём Pango layout
-    PangoLayout *layout;
-    PangoFontDescription *desc;
+    // Set the text and font description
+    Pango::FontDescription font_desc("Sans Bold 16");
+    layout->set_font_description(font_desc);
+    layout->set_text("Hello, Pangomm!😃");
 
-    layout = pango_cairo_create_layout(cr);
-    pango_layout_set_text(layout, "Привет, мир! Это текст с Pango и Cairo. 😃", -1);
+    // Render the layout
+    layout->show_in_cairo_context(cr);
 
-    // Настраиваем шрифт
-    desc = pango_font_description_from_string("Sans 24");
-    pango_layout_set_font_description(layout, desc);
-    pango_font_description_free(desc);
-
-    // Устанавливаем цвет текста (чёрный)
-    cairo_set_source_rgb(cr, 0, 0, 0);
-
-    // Рисуем текст в позиции (20, 50)
-    cairo_move_to(cr, 20, 50);
-    pango_cairo_show_layout(cr, layout);
-
-    // Освобождаем ресурсы
-    g_object_unref(layout);
-    cairo_destroy(cr);
-
-    // Сохраняем в файл
-    cairo_surface_write_to_png(surface, "text_output.png");
-    cairo_surface_destroy(surface);
+    // Save the surface to a file (optional)
+    surface->write_to_png("output.png");
 
     return 0;
 }
