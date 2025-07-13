@@ -252,6 +252,7 @@ public:
         });
         addCommand("report_1", "Узнать отчет за предыдущий день", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
         addCommand("report_7", "Узнать отчет за предыдущую неделю", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
+        addCommand("report_30", "Узнать отчет за предыдущий месяц", [&](TgBot::Message::Ptr msg) { reportFn(msg, 30); });
         addCommand("add_tag", "Добавить тэг трат", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
