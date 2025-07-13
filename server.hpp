@@ -135,7 +135,7 @@ public:
             fort::utf8_table table;
             table.set_cell_text_align(fort::text_align::center);
             table.set_border_style(FT_PLAIN_STYLE);
-            table << fort::header << "Дата" << "Траты" << fort::endr;
+            table << fort::header << "Дата 📅" << "Траты 💸" << fort::endr;
 
             double total = 0;
             auto data = WalletEntry::getDaysAmountSum(_db, wallet, 10);
@@ -153,7 +153,7 @@ public:
 
         addCommand("set_day_limit", "Установить дневной лимит", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
-            if (!chat) {
+            if (!chat) {АД
                 return;
             }
 
