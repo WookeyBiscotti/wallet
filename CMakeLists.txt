@@ -15,7 +15,7 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(deps REQUIRED IMPORTED_TARGET cairomm-1.0 pangomm-1.4 fontconfig)
+pkg_check_modules(deps REQUIRED IMPORTED_TARGET cairomm-1.0 pangomm-1.4)
 
 set(CMAKE_CXX_STANDARD 17)
 

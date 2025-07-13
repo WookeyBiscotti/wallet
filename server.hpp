@@ -209,7 +209,7 @@ public:
             fort::utf8_table table;
             table.set_border_style(FT_PLAIN_STYLE);
             table.set_cell_text_align(fort::text_align::center);
-            table << fort::header << "Дата" << "Траты" << "Баланс" << fort::endr;
+            table << fort::header << "Дата 📅" << "Траты 💸" << "Баланс ⚖️" << fort::endr;
 
             for (std::size_t i = 0; i != daysCount; ++i) {
                 auto report = DayReport::load(_db, wallet, lastDay - i);
@@ -355,7 +355,7 @@ public:
             fort::utf8_table table;
             table.set_border_style(FT_PLAIN_STYLE);
             table.set_cell_text_align(fort::text_align::center);
-            table << fort::header << "Тэг" << "Сумма" << "Доля" << fort::endr;
+            table << fort::header << "Тэг 🏷️" << "Сумма 💰" << "Доля %" << fort::endr;
 
             for (const auto& t : report.byTags) {
                 auto tagStrIt = tagsMap.find(t.first);

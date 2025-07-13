@@ -5,7 +5,6 @@
 #include <pangomm.h>
 #include <pangomm/fontface.h>
 #include <pangomm/fontmap.h>
-// #include <fontconfig/fontconfig.h>
 
 #include <string>
 
