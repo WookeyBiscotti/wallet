@@ -71,7 +71,7 @@ struct Tag {
         std::vector<TgBot::InlineKeyboardButton::Ptr> currentRow;
         std::size_t i = 0;
         for (const auto& t : tags) {
-            if (i++ == 3) {
+            if (i++ == 2) {
                 keyboard->inlineKeyboard.push_back(currentRow);
                 currentRow.clear();
                 i = 0;
