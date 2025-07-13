@@ -216,7 +216,8 @@ public:
                 if (report) {
                     table << fmt::format("{:02d}/{:02d}/{}", report->date.day(), report->date.month(),
                                  report->date.year() % 100)
-                          << fmt::format("{}₽", report->dayExpenses) << fmt::format("{}₽", report->dayBalance) << fort::endr;
+                          << fmt::format("{}₽", report->dayExpenses) << fmt::format("{}₽", report->dayBalance)
+                          << report->dayColor() << fort::endr;
                 } else {
                     break;
                 }
@@ -367,7 +368,8 @@ public:
 
                 table << name << t.second << fmt::format("{:.0f}", 100 * t.second / report.total) << fort::endr;
             }
-            table << "❌🏷️ Без тэга" << report.withoutTags << fmt::format("{:.0f}",100 * report.withoutTags / report.total) << fort::endr;
+            table << "❌🏷️ Без тэга" << report.withoutTags
+                  << fmt::format("{:.0f}", 100 * report.withoutTags / report.total) << fort::endr;
 
             table << fort::separator << "💰💲 Всего" << report.total << fort::endr;
 
