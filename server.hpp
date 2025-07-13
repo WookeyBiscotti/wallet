@@ -153,7 +153,7 @@ public:
 
         addCommand("set_day_limit", "Установить дневной лимит", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
-            if (!chat) {АД
+            if (!chat) {
                 return;
             }
 
