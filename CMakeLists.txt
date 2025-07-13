@@ -15,7 +15,7 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(deps REQUIRED IMPORTED_TARGET cairomm-1.0 pangomm-1.4)
+pkg_check_modules(deps REQUIRED IMPORTED_TARGET cairomm-1.0 pangomm-1.4 fontconfig)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -67,6 +67,3 @@ add_custom_command(
 
 add_custom_target(copy_migration DEPENDS "${CMAKE_BINARY_DIR}/.migration_copied")
 add_dependencies(wallet_bot copy_migration)
-
-
-set_target_properties(wallet_bot PROPERTIES OUTPUT_NAME "test")

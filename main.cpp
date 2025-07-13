@@ -1,28 +1,12 @@
-#include <cairomm/context.h>
-#include <cairomm/surface.h>
-#include <pangomm.h>
+#include "server.hpp"
 #include <pangomm/init.h>
 
-int main() {
+int main(int argc, char** argv) {
     Pango::init();
-    // Create a Cairo surface and context
-    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_ARGB32, 200, 100);
-    auto cr = Cairo::Context::create(surface);
 
-    // Create a Pango Layout
-    auto layout = Pango::Layout::create(cr);
-    layout->update_from_cairo_context(cr);
+    const auto root = std::filesystem::path(argv[0]).parent_path();
 
-    // Set the text and font description
-    Pango::FontDescription font_desc("Sans Bold 16");
-    layout->set_font_description(font_desc);
-    layout->set_text("Hello, Pangomm!😃");
-
-    // Render the layout
-    layout->show_in_cairo_context(cr);
-
-    // Save the surface to a file (optional)
-    surface->write_to_png("output.png");
+    Server server(root);
 
     return 0;
 }

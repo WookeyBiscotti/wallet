@@ -5,6 +5,7 @@
 #include "db/tag.hpp"
 #include "db/wallet.hpp"
 #include "db/wallet_entry.hpp"
+#include "renderer.hpp"
 
 #include "query_commands.hpp"
 
@@ -372,9 +373,11 @@ public:
 
             table[table.row_count() - 1][1].set_cell_span(2);
 
-            std::string reportStr = "`" + absl::StrReplaceAll(table.to_string(), {{"\n", "`\n`"}}) + "`";
+            std::string reportStr = "<code>" + absl::StrReplaceAll(table.to_string(), {{"\n", "</code>\n<code>"}}) + "</code>";
 
-            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
+            drawImage(table.to_string(), 800, 600);
+
+            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "HTML");
         };
         addCommand("total_report", "Узнать сумарный отчет", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
