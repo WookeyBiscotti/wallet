@@ -9,45 +9,42 @@
 
 #include <string>
 
-inline void drawImage(const std::string& text, std::size_t w, std::size_t h) {
-    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_RGB24, w, h);
-    auto cr = Cairo::Context::create(surface);
+inline void drawImage(const std::string& text, const std::string& ouputFile) {
+    auto tempSurface = Cairo::ImageSurface::create(Cairo::Format::FORMAT_RGB24, 1, 1);
+    auto tempCr = Cairo::Context::create(tempSurface);
+    auto layout = Pango::Layout::create(tempCr);
 
-    auto layout = Pango::Layout::create(cr);
-    layout->update_from_cairo_context(cr);
+    Pango::FontDescription fontDesc("Ubuntumono");
+    fontDesc.set_size(24 * PANGO_SCALE);
 
-
-    // FcConfigAppFontAddFile(FcConfigGetCurrent(), (const FcChar8 *)"font.ttf");
-    Pango::FontDescription font_desc("Ubuntumono");
-    font_desc.set_size(24 * PANGO_SCALE);
-
-    layout->set_wrap(Pango::WRAP_CHAR); // Перенос по символам
-    layout->set_font_description(font_desc);
+    layout->set_wrap(Pango::WRAP_CHAR);
+    layout->set_font_description(fontDesc);
     layout->set_text(text);
 
-    auto ws = layout->get_width();
-    auto hs = layout->get_height();
+    int textWidth, textHeight;
+    layout->get_pixel_size(textWidth, textHeight);
 
-    int text_width, text_height;
-    layout->get_pixel_size(text_width, text_height);
+    const int padding = 20;
+    int imageWidth = textWidth + 2 * padding;
+    int imageHeight = textHeight + 2 * padding;
 
-    double surface_width = surface->get_width();
-    double surface_height = surface->get_height();
+    auto surface = Cairo::ImageSurface::create(Cairo::Format::FORMAT_RGB24, imageWidth, imageHeight);
+    auto cr = Cairo::Context::create(surface);
 
-    double scale_x = surface_width / text_width;
-    double scale_y = surface_height / text_height;
-    double scale = std::min(scale_x, scale_y) * 0.9; // 90% от максимального размера
+    cr->set_source_rgb(55 / 255.0f, 55 / 255.0f, 77 / 255.0f);
+    cr->paint();
 
-    cr->save();                                           // Сохраняем текущее состояние контекста
-    cr->translate(surface_width / 2, surface_height / 2); // Центрируем
-    cr->scale(scale, scale);                              // Масштабируем
-    cr->translate(-text_width / 2, -text_height / 2);     // Корректируем позицию
+    cr->move_to(padding, padding);
 
-    cr->set_source_rgb(25, 25, 25); // Черный цвет
+    layout = Pango::Layout::create(cr);
+    layout->set_text(text);
+    Pango::AttrList list;
+    Pango::Attribute attr = Pango::Attribute::create_attr_foreground(65535 * (222 / 255.0f), 65535 * (222 / 255.0f),
+        65535 * (222 / 255.0f));
+    list.insert(attr);
+    layout->set_attributes(list);
+    layout->set_font_description(fontDesc);
     layout->show_in_cairo_context(cr);
 
-    cr->restore(); // Восстанавливаем состояние
-
-    // Save the surface to a file (optional)
-    surface->write_to_png("output.png");
+    surface->write_to_png(ouputFile);
 }

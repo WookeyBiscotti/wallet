@@ -146,9 +146,9 @@ public:
             table << fort::separator;
             table << "Всего" << fmt::format("{:.0f}₽", total) << fort::endr;
 
-            std::string reportStr = "`" + absl::StrReplaceAll(table.to_string(), {{"\n", "`\n`"}}) + "`";
-
-            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
+            const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
+            drawImage(table.to_string(), filename);
+            _bot->getApi().sendPhoto(chat->id, TgBot::InputFile::fromFile(filename, "image/png"));
         });
 
         addCommand("set_day_limit", "Установить дневной лимит", [&](TgBot::Message::Ptr msg) {
@@ -222,9 +222,9 @@ public:
                 }
             }
 
-            std::string reportStr = "`" + absl::StrReplaceAll(table.to_string(), {{"\n", "`\n`"}}) + "`";
-
-            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "MarkdownV2");
+            const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
+            drawImage(table.to_string(), filename);
+            _bot->getApi().sendPhoto(chat->id, TgBot::InputFile::fromFile(filename, "image/png"));
         };
 
         addCommand("report", "Узнать отчет за N дней", [&](TgBot::Message::Ptr msg) {
@@ -373,11 +373,9 @@ public:
 
             table[table.row_count() - 1][1].set_cell_span(2);
 
-            std::string reportStr = "<code>" + absl::StrReplaceAll(table.to_string(), {{"\n", "</code>\n<code>"}}) + "</code>";
-
-            drawImage(table.to_string(), 800, 600);
-
-            _bot->getApi().sendMessage(chat->id, reportStr, nullptr, nullptr, nullptr, "HTML");
+            const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
+            drawImage(table.to_string(), filename);
+            _bot->getApi().sendPhoto(chat->id, TgBot::InputFile::fromFile(filename, "image/png"));
         };
         addCommand("total_report", "Узнать сумарный отчет", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
