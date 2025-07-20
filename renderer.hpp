@@ -13,7 +13,7 @@ inline void drawImage(const std::string& text, const std::string& ouputFile) {
     auto tempCr = Cairo::Context::create(tempSurface);
     auto layout = Pango::Layout::create(tempCr);
 
-    Pango::FontDescription fontDesc("Ubuntumono, Monospace");
+    Pango::FontDescription fontDesc("Noto Sans Mono");
     fontDesc.set_size(24 * PANGO_SCALE);
 
     layout->set_wrap(Pango::WRAP_CHAR);
