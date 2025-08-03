@@ -8,6 +8,28 @@
 
 #include <string>
 
+constexpr auto DEFAULT_FONT = "Noto Sans Mono";
+constexpr auto DEFAULT_FONT_SIZE = 24 * PANGO_SCALE;
+constexpr auto DEFAULT_PADDING = 20;
+
+inline std::pair<std::size_t, std::size_t> calcTextSize(const std::string& text) {
+    auto tempSurface = Cairo::ImageSurface::create(Cairo::Format::FORMAT_RGB24, 1, 1);
+    auto tempCr = Cairo::Context::create(tempSurface);
+    auto layout = Pango::Layout::create(tempCr);
+
+    Pango::FontDescription fontDesc(DEFAULT_FONT);
+    fontDesc.set_size(DEFAULT_FONT_SIZE);
+
+    layout->set_wrap(Pango::WRAP_CHAR);
+    layout->set_font_description(fontDesc);
+    layout->set_text(text);
+
+    int textWidth, textHeight;
+    layout->get_pixel_size(textWidth, textHeight);
+
+    return {textWidth, textHeight};
+}
+
 inline void drawImage(const std::string& text, const std::string& ouputFile) {
     auto tempSurface = Cairo::ImageSurface::create(Cairo::Format::FORMAT_RGB24, 1, 1);
     auto tempCr = Cairo::Context::create(tempSurface);
@@ -23,9 +45,8 @@ inline void drawImage(const std::string& text, const std::string& ouputFile) {
     int textWidth, textHeight;
     layout->get_pixel_size(textWidth, textHeight);
 
-    const int padding = 20;
-    int imageWidth = textWidth + 2 * padding;
-    int imageHeight = textHeight + 2 * padding;
+    int imageWidth = textWidth + 2 * DEFAULT_PADDING;
+    int imageHeight = textHeight + 2 * DEFAULT_PADDING;
 
     auto surface = Cairo::ImageSurface::create(Cairo::Format::FORMAT_RGB24, imageWidth, imageHeight);
     auto cr = Cairo::Context::create(surface);
@@ -33,7 +54,7 @@ inline void drawImage(const std::string& text, const std::string& ouputFile) {
     cr->set_source_rgb(55 / 255.0f, 55 / 255.0f, 77 / 255.0f);
     cr->paint();
 
-    cr->move_to(padding, padding);
+    cr->move_to(DEFAULT_PADDING, DEFAULT_PADDING);
 
     layout = Pango::Layout::create(cr);
     layout->set_text(text);

@@ -6,6 +6,7 @@
 #include "db/wallet.hpp"
 #include "db/wallet_entry.hpp"
 #include "renderer.hpp"
+#include "table.hpp"
 
 #include "query_commands.hpp"
 
@@ -100,9 +101,9 @@ public:
                 const auto delta = wallet.dayLimit - WalletEntry::getDayAmountSum(_db, wallet).amount;
                 std::string message;
                 if (delta < 0) {
-                    message = fmt::format("🟥 Дефицит дня: {:.0f}₽", -delta);
+                    message = fmt::format("🟥 Дефицит дня: {:.0f}", -delta);
                 } else {
-                    message = fmt::format("🟩 Осталось на день: {:.0f}₽", delta);
+                    message = fmt::format("🟩 Осталось на день: {:.0f}", delta);
                 }
 
                 _bot->getApi().sendMessage(chat->id, message);
@@ -132,22 +133,27 @@ public:
 
             auto wallet = loadWallet(chat->id);
 
-            fort::utf8_table table;
-            table.set_cell_text_align(fort::text_align::center);
-            table.set_border_style(FT_PLAIN_STYLE);
-            table << fort::header << "Дата 📅" << "Траты 💸" << fort::endr;
+            Table table2;
+            table2.setSize({2, 1});
+            table2.setContentLastRow(0, "Дата 📅");
+            table2.setContentLastRow(1, "Траты 💸");
+            table2.pushRow();
 
             double total = 0;
             auto data = WalletEntry::getDaysAmountSum(_db, wallet, 10);
             for (std::size_t i = 0; i != 10; ++i) {
-                table << data[i].day << data[i].amount << fort::endr;
+                table2.pushRow();
+                table2.setContentLastRow(0, data[i].day);
+                table2.setContentLastRow(1, data[i].amount);
                 total += data[i].amount;
             }
-            table << fort::separator;
-            table << "Всего" << fmt::format("{:.0f}₽", total) << fort::endr;
+            table2.pushRow();
+            table2.pushRow();
+            table2.setContentLastRow(0, "Всего");
+            table2.setContentLastRow(1, fmt::format("{:.0f}", total));
 
             const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
-            drawImage(table.to_string(), filename);
+            table2.render(filename);
             _bot->getApi().sendPhoto(chat->id, TgBot::InputFile::fromFile(filename, "image/png"));
         });
 
@@ -206,25 +212,29 @@ public:
             auto wallet = loadWallet(chat->id);
             const auto lastDay = absl::ToCivilDay(absl::Now(), wallet.timeZone) - 1;
 
-            fort::utf8_table table;
-            table.set_border_style(FT_PLAIN_STYLE);
-            table.set_cell_text_align(fort::text_align::center);
-            table << fort::header << "Дата 📅" << "Траты 💸" << "Баланс ⚖️" << fort::endr;
+            Table table2;
+            table2.setSize({4, 1});
+            table2.setContentLastRow(0, "Дата 📅");
+            table2.setContentLastRow(1, "Траты 💸");
+            table2.setContentLastRow(2, "Баланс ⚖️");
+            table2.pushRow();
 
             for (std::size_t i = 0; i != daysCount; ++i) {
                 auto report = DayReport::load(_db, wallet, lastDay - i);
                 if (report) {
-                    table << fmt::format("{:02d}/{:02d}/{}", report->date.day(), report->date.month(),
-                                 report->date.year() % 100)
-                          << fmt::format("{}₽", report->dayExpenses) << fmt::format("{}₽", report->dayBalance)
-                          << report->dayColor() << fort::endr;
+                    table2.pushRow();
+                    table2.setContentLastRow(0, fmt::format("{:02d}/{:02d}/{}", report->date.day(),
+                                                    report->date.month(), report->date.year() % 100));
+                    table2.setContentLastRow(1, fmt::format("{}", formatWithApostrophes(report->dayExpenses)));
+                    table2.setContentLastRow(2, fmt::format("{}", formatWithApostrophes(report->dayBalance)));
+                    table2.setContentLastRow(3, report->dayColor());
                 } else {
                     break;
                 }
             }
 
             const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
-            drawImage(table.to_string(), filename);
+            table2.render(filename);
             _bot->getApi().sendPhoto(chat->id, TgBot::InputFile::fromFile(filename, "image/png"));
         };
 
@@ -252,7 +262,8 @@ public:
         });
         addCommand("report_1", "Узнать отчет за предыдущий день", [&](TgBot::Message::Ptr msg) { reportFn(msg, 1); });
         addCommand("report_7", "Узнать отчет за предыдущую неделю", [&](TgBot::Message::Ptr msg) { reportFn(msg, 7); });
-        addCommand("report_30", "Узнать отчет за предыдущий месяц", [&](TgBot::Message::Ptr msg) { reportFn(msg, 30); });
+        addCommand("report_30", "Узнать отчет за предыдущий месяц",
+            [&](TgBot::Message::Ptr msg) { reportFn(msg, 30); });
         addCommand("add_tag", "Добавить тэг трат", [&](TgBot::Message::Ptr msg) {
             auto chat = msg->chat;
             if (!chat) {
@@ -353,10 +364,12 @@ public:
             auto report = WalletEntry::getReportByTags(_db, wallet, daysCount);
             auto tagsMap = Tag::tagsIdToStr(_db, chat->id);
 
-            fort::utf8_table table;
-            table.set_border_style(FT_PLAIN_STYLE);
-            table.set_cell_text_align(fort::text_align::center);
-            table << fort::header << "Тэг 🏷️" << "Сумма 💰" << "Доля %" << fort::endr;
+            Table table2;
+            table2.setSize({3, 1});
+            table2.setContentLastRow(0, "Тэг 🏷️");
+            table2.setContentLastRow(1, "Сумма 💰");
+            table2.setContentLastRow(2, "Доля %");
+            table2.pushRow();
 
             for (const auto& t : report.byTags) {
                 auto tagStrIt = tagsMap.find(t.first);
@@ -367,17 +380,19 @@ public:
                     name = "📛 Неизвестный тэг";
                 }
 
-                table << name << t.second << fmt::format("{:.0f}", 100 * t.second / report.total) << fort::endr;
+                table2.pushRow();
+                table2.setContentLastRow(0, name);
+                table2.setContentLastRow(1, fmt::format("{}", formatWithApostrophes(t.second)));
+                table2.setContentLastRow(2, fmt::format("{:.0f}", 100 * t.second / report.total));
             }
-            table << "❌🏷️ Без тэга" << report.withoutTags
-                  << fmt::format("{:.0f}", 100 * report.withoutTags / report.total) << fort::endr;
 
-            table << fort::separator << "💰💲 Всего" << report.total << fort::endr;
-
-            table[table.row_count() - 1][1].set_cell_span(2);
+            table2.pushRow();
+            table2.pushRow();
+            table2.setContentLastRow(0, "💰💲 Всего");
+            table2.setContentLastRow(1, fmt::format("{}", formatWithApostrophes(report.total)));
 
             const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
-            drawImage(table.to_string(), filename);
+            table2.render(filename);
             _bot->getApi().sendPhoto(chat->id, TgBot::InputFile::fromFile(filename, "image/png"));
         };
         addCommand("total_report", "Узнать сумарный отчет", [&](TgBot::Message::Ptr msg) {
