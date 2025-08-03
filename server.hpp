@@ -149,8 +149,10 @@ public:
             }
             table2.pushRow();
             table2.pushRow();
-            table2.setContentLastRow(0, "Всего");
-            table2.setContentLastRow(1, fmt::format("{:.0f}", total));
+            table2.setContentLastRow(0, "💰💲 Всего");
+            table2.setContentLastRow(1, formatWithApostrophes(total));
+
+            table2.setColumnAlign(1, Align::RIGHT);
 
             const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
             table2.render(filename);
@@ -219,19 +221,29 @@ public:
             table2.setContentLastRow(2, "Баланс ⚖️");
             table2.pushRow();
 
+            double totalSum = {};
             for (std::size_t i = 0; i != daysCount; ++i) {
                 auto report = DayReport::load(_db, wallet, lastDay - i);
                 if (report) {
                     table2.pushRow();
                     table2.setContentLastRow(0, fmt::format("{:02d}/{:02d}/{}", report->date.day(),
                                                     report->date.month(), report->date.year() % 100));
-                    table2.setContentLastRow(1, fmt::format("{}", formatWithApostrophes(report->dayExpenses)));
-                    table2.setContentLastRow(2, fmt::format("{}", formatWithApostrophes(report->dayBalance)));
+                    table2.setContentLastRow(1, formatWithApostrophes(report->dayExpenses));
+                    table2.setContentLastRow(2, formatWithApostrophes(report->dayBalance));
                     table2.setContentLastRow(3, report->dayColor());
+
+                    totalSum += report->dayExpenses;
                 } else {
                     break;
                 }
             }
+            table2.pushRow();
+            table2.pushRow();
+            table2.setContentLastRow(0, "💰💲 Всего");
+            table2.setContentLastRow(2, formatWithApostrophes(totalSum));
+
+            table2.setColumnAlign(1, Align::RIGHT);
+            table2.setColumnAlign(2, Align::RIGHT);
 
             const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
             table2.render(filename);
@@ -390,6 +402,9 @@ public:
             table2.pushRow();
             table2.setContentLastRow(0, "💰💲 Всего");
             table2.setContentLastRow(1, fmt::format("{}", formatWithApostrophes(report.total)));
+
+            table2.setColumnAlign(1, Align::RIGHT);
+            table2.setColumnAlign(2, Align::RIGHT);
 
             const auto filename = "/tmp/" + std::to_string(chat->id) + ".png";
             table2.render(filename);

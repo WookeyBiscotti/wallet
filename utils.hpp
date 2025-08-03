@@ -50,7 +50,7 @@ inline std::optional<int> strToT(std::string_view str) {
 inline std::string formatWithApostrophes(std::int64_t num) {
     std::string s = std::to_string(num);
     int n = s.length() - 3;
-    while (n > 0) {
+    while (n > (s.front() == '-' ? 1 : 0)) {
         s.insert(n, "'");
         n -= 3;
     }

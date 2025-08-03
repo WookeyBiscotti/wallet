@@ -29,6 +29,7 @@ struct Cell {
     Vec2u mergeSize = {1, 1};
 
     std::string text;
+    Vec2u textSize;
 
     Vec2u pos;
     Vec2u size;
@@ -45,6 +46,12 @@ struct Table {
         data.resize(c.x);
         for (auto& v : data) {
             v.resize(c.y);
+        }
+    }
+
+    void setColumnAlign(std::size_t x, Align a) {
+        for (std::size_t y = 0; y != data.front().size(); ++y) {
+            data[x][y].align = a;
         }
     }
 
@@ -71,6 +78,7 @@ struct Table {
                     continue;
                 }
                 std::tie(c.size.x, c.size.y) = calcTextSize(c.text);
+                c.textSize = c.size;
                 lineHeight = std::max(lineHeight, c.size.y);
                 columnsWidth[x] = std::max(columnsWidth[x], c.size.x);
             }
@@ -119,8 +127,11 @@ struct Table {
         for (std::size_t x = 0; x != data.size(); ++x) {
             for (std::size_t y = 0; y != data.front().size(); ++y) {
                 const auto& c = getCell({x, y});
-
-                cr->move_to(DEFAULT_PADDING + c.pos.x, DEFAULT_PADDING + c.pos.y);
+                if (c.align == Align::RIGHT) {
+                    cr->move_to(DEFAULT_PADDING + c.pos.x + (c.size.x - c.textSize.x), DEFAULT_PADDING + c.pos.y);
+                } else {
+                    cr->move_to(DEFAULT_PADDING + c.pos.x, DEFAULT_PADDING + c.pos.y);
+                }
 
                 layout->set_text(c.text);
                 layout->show_in_cairo_context(cr);
